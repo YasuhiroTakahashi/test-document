@@ -1,0 +1,377 @@
+---
+title: "エラーハンドリング"
+description: "APIエラーの適切な処理方法"
+---
+
+## 概要
+
+MealPlan AI APIは、標準的なHTTPステータスコードと詳細なエラーメッセージを返します。適切なエラーハンドリングを実装することで、ユーザー体験を向上できます。
+
+## エラーレスポンスの形式
+
+すべてのエラーレスポンスは、以下の形式で返されます：
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "error_code",
+    "message": "人間が読めるエラーメッセージ",
+    "details": {
+      "field": "問題のあるフィールド",
+      "issue": "具体的な問題"
+    }
+  },
+  "meta": {
+    "request_id": "req_abc123",
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+## HTTPステータスコード
+
+| コード | 説明 | 対処方法 |
+|--------|------|----------|
+| `200 OK` | 成功 | - |
+| `201 Created` | リソース作成成功 | - |
+| `400 Bad Request` | リクエストが不正 | リクエストを修正 |
+| `401 Unauthorized` | 認証が必要 | 認証情報を確認 |
+| `403 Forbidden` | アクセス権限なし | 権限を確認 |
+| `404 Not Found` | リソースが見つからない | IDを確認 |
+| `429 Too Many Requests` | レート制限超過 | 待機してリトライ |
+| `500 Internal Server Error` | サーバーエラー | リトライまたはサポートに連絡 |
+| `503 Service Unavailable` | サービス一時停止 | しばらく待ってリトライ |
+
+## エラーコード一覧
+
+### 認証エラー
+
+| コード | 説明 | 対処方法 |
+|--------|------|----------|
+| `unauthorized` | 認証情報が無効 | APIキーを確認 |
+| `token_expired` | トークンの有効期限切れ | トークンを更新 |
+| `invalid_token` | トークンが不正 | 新しいトークンを取得 |
+| `forbidden` | アクセス権限なし | 必要なスコープを確認 |
+
+### バリデーションエラー
+
+| コード | 説明 | 対処方法 |
+|--------|------|----------|
+| `invalid_request` | リクエストが不正 | パラメータを確認 |
+| `missing_parameter` | 必須パラメータが欠落 | パラメータを追加 |
+| `invalid_parameter` | パラメータの値が不正 | 値を修正 |
+| `validation_error` | バリデーション失敗 | detailsを確認 |
+
+### リソースエラー
+
+| コード | 説明 | 対処方法 |
+|--------|------|----------|
+| `not_found` | リソースが見つからない | IDを確認 |
+| `already_exists` | リソースが既に存在 | 既存のリソースを使用 |
+| `conflict` | リソースの競合 | 最新の状態を取得 |
+
+### レート制限エラー
+
+| コード | 説明 | 対処方法 |
+|--------|------|----------|
+| `rate_limit_exceeded` | レート制限超過 | Retry-Afterを確認して待機 |
+
+### サーバーエラー
+
+| コード | 説明 | 対処方法 |
+|--------|------|----------|
+| `internal_error` | サーバー内部エラー | リトライまたはサポートに連絡 |
+| `service_unavailable` | サービス一時停止 | しばらく待ってリトライ |
+
+## エラーハンドリングの実装
+
+### 基本的なエラーハンドリング
+
+```javascript
+async function makeAPIRequest(url, options) {
+  try {
+    const response = await fetch(url, options);
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new APIError(data.error, response.status);
+    }
+    
+    return data;
+  } catch (error) {
+    if (error instanceof APIError) {
+      handleAPIError(error);
+    } else {
+      handleNetworkError(error);
+    }
+    throw error;
+  }
+}
+
+class APIError extends Error {
+  constructor(errorData, statusCode) {
+    super(errorData.message);
+    this.code = errorData.code;
+    this.details = errorData.details;
+    this.statusCode = statusCode;
+  }
+}
+
+function handleAPIError(error) {
+  switch (error.code) {
+    case 'unauthorized':
+      // 認証情報を更新
+      refreshAuthToken();
+      break;
+    case 'rate_limit_exceeded':
+      // レート制限の処理
+      scheduleRetry(error.details.reset_at);
+      break;
+    case 'not_found':
+      // リソースが見つからない
+      showNotFoundMessage();
+      break;
+    default:
+      // 一般的なエラー
+      showErrorMessage(error.message);
+  }
+}
+```
+
+### ステータスコード別の処理
+
+```javascript
+async function handleResponse(response) {
+  const data = await response.json();
+  
+  switch (response.status) {
+    case 200:
+    case 201:
+      return data;
+      
+    case 400:
+      // バリデーションエラー
+      throw new ValidationError(data.error);
+      
+    case 401:
+      // 認証エラー
+      await refreshToken();
+      return retryRequest();
+      
+    case 403:
+      // 権限エラー
+      throw new PermissionError(data.error);
+      
+    case 404:
+      // リソースが見つからない
+      throw new NotFoundError(data.error);
+      
+    case 429:
+      // レート制限
+      const retryAfter = response.headers.get('Retry-After');
+      await sleep(retryAfter * 1000);
+      return retryRequest();
+      
+    case 500:
+    case 503:
+      // サーバーエラー
+      throw new ServerError(data.error);
+      
+    default:
+      throw new Error(`Unexpected status: ${response.status}`);
+  }
+}
+```
+
+### リトライロジック
+
+```javascript
+async function apiRequestWithRetry(url, options, config = {}) {
+  const {
+    maxRetries = 3,
+    retryDelay = 1000,
+    retryableStatuses = [429, 500, 503]
+  } = config;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      if (!retryableStatuses.includes(response.status)) {
+        // リトライ不可能なエラー
+        throw new APIError(await response.json(), response.status);
+      }
+      
+      if (attempt < maxRetries - 1) {
+        // 指数バックオフ
+        const delay = retryDelay * Math.pow(2, attempt);
+        console.log(`Retry attempt ${attempt + 1} after ${delay}ms`);
+        await sleep(delay);
+      }
+    } catch (error) {
+      if (attempt === maxRetries - 1) {
+        throw error;
+      }
+    }
+  }
+}
+```
+
+## ユーザーフレンドリーなエラーメッセージ
+
+### エラーメッセージの変換
+
+```javascript
+function getUserFriendlyMessage(error) {
+  const messages = {
+    'unauthorized': 'ログインが必要です。再度ログインしてください。',
+    'rate_limit_exceeded': 'リクエストが多すぎます。しばらく待ってから再試行してください。',
+    'not_found': '指定された献立が見つかりません。',
+    'invalid_parameter': '入力内容に誤りがあります。もう一度確認してください。',
+    'internal_error': 'サーバーエラーが発生しました。しばらく待ってから再試行してください。'
+  };
+  
+  return messages[error.code] || 'エラーが発生しました。もう一度お試しください。';
+}
+
+// 使用例
+try {
+  await generateMealPlan(params);
+} catch (error) {
+  const message = getUserFriendlyMessage(error);
+  showNotification(message, 'error');
+}
+```
+
+## ロギングとモニタリング
+
+### エラーログの記録
+
+```javascript
+function logError(error, context) {
+  const errorLog = {
+    timestamp: new Date().toISOString(),
+    error: {
+      code: error.code,
+      message: error.message,
+      statusCode: error.statusCode,
+      details: error.details
+    },
+    context: {
+      url: context.url,
+      method: context.method,
+      userId: context.userId,
+      requestId: error.requestId
+    },
+    stack: error.stack
+  };
+  
+  // ログサービスに送信
+  logger.error(errorLog);
+  
+  // 重大なエラーの場合はアラート
+  if (error.statusCode >= 500) {
+    alerting.notify(errorLog);
+  }
+}
+```
+
+### エラーメトリクスの収集
+
+```javascript
+class ErrorMetrics {
+  constructor() {
+    this.errors = new Map();
+  }
+  
+  record(error) {
+    const key = `${error.statusCode}_${error.code}`;
+    const count = this.errors.get(key) || 0;
+    this.errors.set(key, count + 1);
+  }
+  
+  getReport() {
+    const report = [];
+    for (const [key, count] of this.errors.entries()) {
+      const [statusCode, code] = key.split('_');
+      report.push({ statusCode, code, count });
+    }
+    return report.sort((a, b) => b.count - a.count);
+  }
+}
+```
+
+## デバッグのヒント
+
+### Request IDの活用
+
+すべてのエラーレスポンスには`request_id`が含まれます。サポートに問い合わせる際は、このIDを提供してください。
+
+```javascript
+try {
+  await makeAPIRequest(url, options);
+} catch (error) {
+  console.error(`Error occurred. Request ID: ${error.requestId}`);
+  // サポートに連絡する際にrequest_idを提供
+}
+```
+
+### 詳細なエラー情報の取得
+
+```javascript
+async function debugAPIRequest(url, options) {
+  console.log('Request:', { url, options });
+  
+  try {
+    const response = await fetch(url, options);
+    const data = await response.json();
+    
+    console.log('Response:', {
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      data
+    });
+    
+    return data;
+  } catch (error) {
+    console.error('Error:', error);
+    throw error;
+  }
+}
+```
+
+## ベストプラクティス
+
+<AccordionGroup>
+  <Accordion title="適切なエラーハンドリングを実装する">
+    すべてのAPIリクエストにtry-catchを使用し、適切にエラーを処理してください。
+  </Accordion>
+  
+  <Accordion title="ユーザーフレンドリーなメッセージを表示する">
+    技術的なエラーメッセージをそのまま表示せず、ユーザーが理解できる言葉に変換してください。
+  </Accordion>
+  
+  <Accordion title="リトライロジックを実装する">
+    一時的なエラー（429, 500, 503）に対しては、適切なリトライロジックを実装してください。
+  </Accordion>
+  
+  <Accordion title="エラーをログに記録する">
+    すべてのエラーをログに記録し、問題の特定と解決に役立ててください。
+  </Accordion>
+</AccordionGroup>
+
+## 次のステップ
+
+<CardGroup cols={2}>
+  <Card title="ベストプラクティス" icon="star" href="/developer/best-practices">
+    API使用のベストプラクティス
+  </Card>
+  <Card title="サポート" icon="life-ring" href="mailto:support@mealplan-ai.com">
+    技術サポートに問い合わせ
+  </Card>
+</CardGroup>

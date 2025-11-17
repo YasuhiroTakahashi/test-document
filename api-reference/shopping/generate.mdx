@@ -1,0 +1,263 @@
+---
+title: "買い物リスト生成"
+api: "POST /v1/shopping-lists/generate"
+description: "献立から買い物リストを生成します"
+---
+
+## 概要
+
+このエンドポイントは、献立IDを指定して、必要な食材をまとめた買い物リストを自動生成します。
+
+## エンドポイント
+
+```
+POST https://api.mealplan-ai.com/v1/shopping-lists/generate
+```
+
+## 認証
+
+<ParamField header="Authorization" type="string" required>
+  Bearer トークン形式のAPIキーまたはOAuthアクセストークン
+</ParamField>
+
+## リクエストボディ
+
+<ParamField body="meal_plan_id" type="string" required>
+  献立ID
+</ParamField>
+
+<ParamField body="exclude_items" type="array">
+  除外する食材（既に持っているもの）
+</ParamField>
+
+<ParamField body="group_by" type="string" default="category">
+  グループ化方法
+  
+  選択肢: `category`（カテゴリ別）, `store_section`（売り場別）
+</ParamField>
+
+## リクエスト例
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.mealplan-ai.com/v1/shopping-lists/generate \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "meal_plan_id": "mp_abc123",
+    "exclude_items": ["醤油", "塩"],
+    "group_by": "store_section"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.mealplan-ai.com/v1/shopping-lists/generate',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      meal_plan_id: 'mp_abc123',
+      exclude_items: ['醤油', '塩'],
+      group_by: 'store_section'
+    })
+  }
+);
+
+const shoppingList = await response.json();
+```
+
+```python Python
+import requests
+
+url = "https://api.mealplan-ai.com/v1/shopping-lists/generate"
+headers = {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+}
+data = {
+    "meal_plan_id": "mp_abc123",
+    "exclude_items": ["醤油", "塩"],
+    "group_by": "store_section"
+}
+
+response = requests.post(url, headers=headers, json=data)
+shopping_list = response.json()
+```
+</CodeGroup>
+
+## レスポンス
+
+<ResponseField name="success" type="boolean">
+  生成が成功したかどうか
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  買い物リストデータ
+  
+  <Expandable title="data のプロパティ">
+    <ResponseField name="data.id" type="string">
+      買い物リストID
+    </ResponseField>
+    
+    <ResponseField name="data.meal_plan_id" type="string">
+      関連する献立ID
+    </ResponseField>
+    
+    <ResponseField name="data.created_at" type="string">
+      作成日時
+    </ResponseField>
+    
+    <ResponseField name="data.items" type="array">
+      買い物アイテムの配列
+      
+      <Expandable title="items の要素">
+        <ResponseField name="items[].name" type="string">
+          食材名
+        </ResponseField>
+        
+        <ResponseField name="items[].amount" type="string">
+          必要量
+        </ResponseField>
+        
+        <ResponseField name="items[].unit" type="string">
+          単位
+        </ResponseField>
+        
+        <ResponseField name="items[].category" type="string">
+          カテゴリ
+        </ResponseField>
+        
+        <ResponseField name="items[].store_section" type="string">
+          売り場
+        </ResponseField>
+        
+        <ResponseField name="items[].estimated_price" type="integer">
+          推定価格（円）
+        </ResponseField>
+        
+        <ResponseField name="items[].checked" type="boolean">
+          チェック済みか
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="data.total_items" type="integer">
+      アイテム総数
+    </ResponseField>
+    
+    <ResponseField name="data.estimated_total_price" type="integer">
+      推定合計金額（円）
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## レスポンス例
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "sl_xyz789",
+    "meal_plan_id": "mp_abc123",
+    "created_at": "2024-01-15T10:30:00Z",
+    "items": [
+      {
+        "name": "鶏もも肉",
+        "amount": "600",
+        "unit": "g",
+        "category": "肉類",
+        "store_section": "精肉コーナー",
+        "estimated_price": 480,
+        "checked": false
+      },
+      {
+        "name": "玉ねぎ",
+        "amount": "3",
+        "unit": "個",
+        "category": "野菜",
+        "store_section": "野菜コーナー",
+        "estimated_price": 150,
+        "checked": false
+      },
+      {
+        "name": "にんじん",
+        "amount": "2",
+        "unit": "本",
+        "category": "野菜",
+        "store_section": "野菜コーナー",
+        "estimated_price": 100,
+        "checked": false
+      }
+    ],
+    "total_items": 3,
+    "estimated_total_price": 730
+  },
+  "meta": {
+    "request_id": "req_abc123",
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+## 使用例
+
+### 買い物リストを生成して表示
+
+```javascript
+async function generateShoppingList(mealPlanId) {
+  const response = await fetch(
+    'https://api.mealplan-ai.com/v1/shopping-lists/generate',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        meal_plan_id: mealPlanId,
+        group_by: 'store_section'
+      })
+    }
+  );
+  
+  const { data } = await response.json();
+  
+  console.log(`買い物リストID: ${data.id}`);
+  console.log(`アイテム数: ${data.total_items}`);
+  console.log(`推定金額: ¥${data.estimated_total_price}`);
+  
+  // 売り場別にグループ化して表示
+  const grouped = {};
+  data.items.forEach(item => {
+    if (!grouped[item.store_section]) {
+      grouped[item.store_section] = [];
+    }
+    grouped[item.store_section].push(item);
+  });
+  
+  Object.entries(grouped).forEach(([section, items]) => {
+    console.log(`\n${section}:`);
+    items.forEach(item => {
+      console.log(`  - ${item.name}: ${item.amount}${item.unit}`);
+    });
+  });
+}
+```
+
+## 関連エンドポイント
+
+<CardGroup cols={2}>
+  <Card title="買い物リスト取得" icon="list" href="/api-reference/shopping/get">
+    買い物リストの詳細を取得
+  </Card>
+  <Card title="アイテム管理" icon="check" href="/api-reference/shopping/items">
+    アイテムのチェック状態を更新
+  </Card>
+  <Card title="献立詳細" icon="utensils" href="/api-reference/meal-plans/get">
+    関連する献立を確認
+  </Card>
+</CardGroup>

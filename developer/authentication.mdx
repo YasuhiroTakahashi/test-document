@@ -1,0 +1,350 @@
+---
+title: "認証とセキュリティ"
+description: "MealPlan AI APIの安全な認証方法とセキュリティのベストプラクティス"
+---
+
+## 概要
+
+MealPlan AI APIは、APIキーとOAuth 2.0の2つの認証方法をサポートしています。用途に応じて適切な方法を選択してください。
+
+## 認証方法の選択
+
+<Tabs>
+  <Tab title="APIキー">
+    **推奨用途:**
+    - サーバーサイドアプリケーション
+    - バックエンドサービス
+    - 個人開発プロジェクト
+    
+    **メリット:**
+    - シンプルで実装が簡単
+    - すぐに使い始められる
+    
+    **デメリット:**
+    - ユーザー単位の権限管理ができない
+    - クライアントサイドでは使用不可
+  </Tab>
+  
+  <Tab title="OAuth 2.0">
+    **推奨用途:**
+    - ユーザー代理でアクセスするアプリ
+    - マルチテナントアプリケーション
+    - サードパーティ統合
+    
+    **メリット:**
+    - ユーザー単位の権限管理
+    - スコープによる細かい権限制御
+    - トークンの自動更新
+    
+    **デメリット:**
+    - 実装が複雑
+    - 初期設定に時間がかかる
+  </Tab>
+</Tabs>
+
+## APIキー認証
+
+### APIキーの取得
+
+<Steps>
+  <Step title="ダッシュボードにログイン">
+    [ダッシュボード](https://app.mealplan-ai.com)にアクセス
+  </Step>
+  
+  <Step title="API Keysページに移動">
+    Settings → API Keys
+  </Step>
+  
+  <Step title="新しいキーを作成">
+    「Create New API Key」をクリックし、キーに名前を付ける
+  </Step>
+  
+  <Step title="キーを安全に保存">
+    生成されたキーをコピーして安全な場所に保存（再表示不可）
+  </Step>
+</Steps>
+
+### APIキーの使用
+
+```javascript
+// 環境変数に保存
+const API_KEY = process.env.MEALPLAN_API_KEY;
+
+// リクエストヘッダーに含める
+const response = await fetch('https://api.mealplan-ai.com/v1/meal-plans', {
+  headers: {
+    'Authorization': `Bearer ${API_KEY}`,
+    'Content-Type': 'application/json'
+  }
+});
+```
+
+<Warning>
+  **重要**: APIキーは秘密情報です。
+  
+  - 公開リポジトリにコミットしない
+  - クライアントサイドのコードに含めない
+  - 環境変数で管理する
+  - 定期的にローテーションする
+</Warning>
+
+## OAuth 2.0認証
+
+### OAuth アプリケーションの登録
+
+<Steps>
+  <Step title="OAuth Appsページに移動">
+    ダッシュボード → Settings → OAuth Apps
+  </Step>
+  
+  <Step title="新しいアプリを作成">
+    「Create OAuth App」をクリック
+  </Step>
+  
+  <Step title="アプリ情報を入力">
+    - アプリ名
+    - ホームページURL
+    - コールバックURL
+    - 説明
+  </Step>
+  
+  <Step title="Client IDとSecretを取得">
+    作成後、Client IDとClient Secretが発行される
+  </Step>
+</Steps>
+
+### Authorization Code Flow
+
+最も安全なOAuthフロー。Webアプリケーションに推奨。
+
+```javascript
+// 1. 認可URLにリダイレクト
+const authUrl = new URL('https://app.mealplan-ai.com/oauth/authorize');
+authUrl.searchParams.append('client_id', CLIENT_ID);
+authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
+authUrl.searchParams.append('response_type', 'code');
+authUrl.searchParams.append('scope', 'meal_plans:read meal_plans:write');
+authUrl.searchParams.append('state', generateRandomState());
+
+window.location.href = authUrl.toString();
+
+// 2. コールバックで認可コードを受け取る
+app.get('/callback', async (req, res) => {
+  const { code, state } = req.query;
+  
+  // stateを検証（CSRF対策）
+  if (state !== req.session.oauthState) {
+    return res.status(400).send('Invalid state');
+  }
+  
+  // 3. 認可コードをアクセストークンに交換
+  const tokenResponse = await fetch('https://app.mealplan-ai.com/oauth/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: code,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      redirect_uri: REDIRECT_URI
+    })
+  });
+  
+  const tokens = await tokenResponse.json();
+  // tokens.access_token, tokens.refresh_token を保存
+});
+```
+
+### トークンの更新
+
+アクセストークンの有効期限は1時間です。リフレッシュトークンを使用して更新します。
+
+```javascript
+async function refreshAccessToken(refreshToken) {
+  const response = await fetch('https://app.mealplan-ai.com/oauth/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET
+    })
+  });
+  
+  const tokens = await response.json();
+  return tokens;
+}
+
+// 自動更新の実装例
+class TokenManager {
+  constructor(accessToken, refreshToken, expiresIn) {
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
+    this.expiresAt = Date.now() + (expiresIn * 1000);
+  }
+  
+  async getValidToken() {
+    // トークンの有効期限が5分以内なら更新
+    if (Date.now() > this.expiresAt - 300000) {
+      const tokens = await refreshAccessToken(this.refreshToken);
+      this.accessToken = tokens.access_token;
+      this.refreshToken = tokens.refresh_token;
+      this.expiresAt = Date.now() + (tokens.expires_in * 1000);
+    }
+    
+    return this.accessToken;
+  }
+}
+```
+
+## セキュリティのベストプラクティス
+
+### 1. 環境変数の使用
+
+```bash
+# .env ファイル
+MEALPLAN_API_KEY=your_api_key_here
+MEALPLAN_CLIENT_ID=your_client_id
+MEALPLAN_CLIENT_SECRET=your_client_secret
+
+# .gitignore に追加
+.env
+.env.local
+```
+
+```javascript
+// dotenvで読み込み
+require('dotenv').config();
+
+const apiKey = process.env.MEALPLAN_API_KEY;
+```
+
+### 2. HTTPSの使用
+
+すべてのAPI通信はHTTPS経由で行ってください。HTTPは受け付けられません。
+
+```javascript
+// ✅ 正しい
+const API_BASE = 'https://api.mealplan-ai.com/v1';
+
+// ❌ 間違い
+const API_BASE = 'http://api.mealplan-ai.com/v1';
+```
+
+### 3. トークンの安全な保存
+
+<Tabs>
+  <Tab title="サーバーサイド">
+    ```javascript
+    // セッションに保存
+    req.session.accessToken = tokens.access_token;
+    req.session.refreshToken = tokens.refresh_token;
+    
+    // または暗号化してデータベースに保存
+    const encrypted = encrypt(tokens.access_token);
+    await db.tokens.create({ userId, token: encrypted });
+    ```
+  </Tab>
+  
+  <Tab title="クライアントサイド">
+    ```javascript
+    // HttpOnly Cookieに保存（推奨）
+    res.cookie('access_token', tokens.access_token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 3600000 // 1時間
+    });
+    
+    // LocalStorageは避ける（XSS脆弱性）
+    // ❌ localStorage.setItem('token', token);
+    ```
+  </Tab>
+</Tabs>
+
+### 4. 最小権限の原則
+
+必要最小限のスコープのみを要求してください。
+
+```javascript
+// ✅ 必要なスコープのみ
+const scopes = ['meal_plans:read', 'profiles:read'];
+
+// ❌ すべてのスコープを要求
+const scopes = ['meal_plans:read', 'meal_plans:write', 'recipes:read', 
+                'recipes:write', 'shopping:read', 'shopping:write'];
+```
+
+### 5. レート制限の遵守
+
+APIレート制限を超えないよう、適切なリトライロジックを実装してください。
+
+```javascript
+async function apiRequestWithRetry(url, options, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    const response = await fetch(url, options);
+    
+    if (response.status === 429) {
+      // レート制限に達した場合
+      const retryAfter = response.headers.get('Retry-After');
+      await sleep(retryAfter * 1000);
+      continue;
+    }
+    
+    return response;
+  }
+  
+  throw new Error('Max retries exceeded');
+}
+```
+
+## トラブルシューティング
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized エラー">
+    **原因:**
+    - APIキーが無効または期限切れ
+    - Authorizationヘッダーの形式が間違っている
+    
+    **解決方法:**
+    - APIキーを確認
+    - `Bearer` プレフィックスを確認
+    - トークンの有効期限を確認
+  </Accordion>
+  
+  <Accordion title="403 Forbidden エラー">
+    **原因:**
+    - 必要なスコープがない
+    - リソースへのアクセス権限がない
+    
+    **解決方法:**
+    - 必要なスコープを確認
+    - OAuth認可時に適切なスコープを要求
+  </Accordion>
+  
+  <Accordion title="トークンが更新できない">
+    **原因:**
+    - リフレッシュトークンの有効期限切れ（30日）
+    - Client Secretが間違っている
+    
+    **解決方法:**
+    - ユーザーに再認証を要求
+    - Client IDとSecretを確認
+  </Accordion>
+</AccordionGroup>
+
+## 次のステップ
+
+<CardGroup cols={2}>
+  <Card title="レート制限" icon="gauge" href="/developer/rate-limits">
+    API使用量の制限について
+  </Card>
+  <Card title="エラーハンドリング" icon="triangle-exclamation" href="/developer/error-handling">
+    エラーの適切な処理方法
+  </Card>
+</CardGroup>

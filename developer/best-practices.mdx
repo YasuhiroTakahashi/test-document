@@ -1,0 +1,475 @@
+---
+title: "ベストプラクティス"
+description: "MealPlan AI APIを効果的に使用するためのベストプラクティス"
+---
+
+## 概要
+
+このガイドでは、MealPlan AI APIを効率的かつ安全に使用するためのベストプラクティスを紹介します。
+
+## セキュリティ
+
+### APIキーの管理
+
+<AccordionGroup>
+  <Accordion title="環境変数を使用する">
+    APIキーはコードに直接書かず、環境変数で管理してください。
+    
+    ```javascript
+    // ✅ 正しい
+    const apiKey = process.env.MEALPLAN_API_KEY;
+    
+    // ❌ 間違い
+    const apiKey = 'sk_live_abc123...';
+    ```
+  </Accordion>
+  
+  <Accordion title="クライアントサイドで使用しない">
+    APIキーはサーバーサイドでのみ使用してください。
+    
+    ```javascript
+    // ✅ サーバーサイド（Node.js）
+    app.get('/api/meal-plans', async (req, res) => {
+      const data = await fetch('https://api.mealplan-ai.com/v1/meal-plans', {
+        headers: { 'Authorization': `Bearer ${process.env.MEALPLAN_API_KEY}` }
+      });
+      res.json(data);
+    });
+    
+    // ❌ クライアントサイド（ブラウザ）
+    // APIキーが露出してしまう
+    ```
+  </Accordion>
+  
+  <Accordion title="定期的にローテーションする">
+    セキュリティのため、APIキーを定期的に更新してください。
+    
+    - 推奨: 3-6ヶ月ごと
+    - 漏洩の疑いがある場合: 即座に
+  </Accordion>
+</AccordionGroup>
+
+## パフォーマンス
+
+### キャッシング戦略
+
+```javascript
+class MealPlanCache {
+  constructor(ttl = 300000) { // 5分
+    this.cache = new Map();
+    this.ttl = ttl;
+  }
+  
+  set(key, value) {
+    this.cache.set(key, {
+      value,
+      expires: Date.now() + this.ttl
+    });
+  }
+  
+  get(key) {
+    const item = this.cache.get(key);
+    if (!item) return null;
+    
+    if (Date.now() > item.expires) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return item.value;
+  }
+  
+  async getOrFetch(key, fetchFn) {
+    const cached = this.get(key);
+    if (cached) return cached;
+    
+    const value = await fetchFn();
+    this.set(key, value);
+    return value;
+  }
+}
+
+// 使用例
+const cache = new MealPlanCache();
+
+async function getMealPlan(id) {
+  return cache.getOrFetch(`meal-plan-${id}`, async () => {
+    const response = await fetch(`/v1/meal-plans/${id}`);
+    return response.json();
+  });
+}
+```
+
+### バッチ処理
+
+複数のリクエストをまとめて処理：
+
+```javascript
+// ❌ 非効率（N回のリクエスト）
+async function getMultipleMealPlans(ids) {
+  const plans = [];
+  for (const id of ids) {
+    const plan = await fetch(`/v1/meal-plans/${id}`);
+    plans.push(await plan.json());
+  }
+  return plans;
+}
+
+// ✅ 効率的（1回のリクエスト）
+async function getMultipleMealPlans(ids) {
+  const response = await fetch('/v1/meal-plans/batch', {
+    method: 'POST',
+    body: JSON.stringify({ ids })
+  });
+  return response.json();
+}
+```
+
+### 並列処理
+
+```javascript
+// ❌ 直列処理（遅い）
+const profile = await fetch('/v1/profiles');
+const mealPlan = await fetch('/v1/meal-plans/latest');
+const shoppingList = await fetch('/v1/shopping-lists/latest');
+
+// ✅ 並列処理（速い）
+const [profile, mealPlan, shoppingList] = await Promise.all([
+  fetch('/v1/profiles'),
+  fetch('/v1/meal-plans/latest'),
+  fetch('/v1/shopping-lists/latest')
+]);
+```
+
+## エラーハンドリング
+
+### グレースフルデグラデーション
+
+```javascript
+async function getMealPlanWithFallback(id) {
+  try {
+    // まずAPIから取得を試みる
+    return await fetchFromAPI(id);
+  } catch (error) {
+    console.error('API error:', error);
+    
+    // キャッシュから取得
+    const cached = getCachedMealPlan(id);
+    if (cached) {
+      console.log('Using cached data');
+      return cached;
+    }
+    
+    // デフォルトの献立を返す
+    console.log('Using default meal plan');
+    return getDefaultMealPlan();
+  }
+}
+```
+
+### サーキットブレーカーパターン
+
+```javascript
+class CircuitBreaker {
+  constructor(threshold = 5, timeout = 60000) {
+    this.failureCount = 0;
+    this.threshold = threshold;
+    this.timeout = timeout;
+    this.state = 'CLOSED'; // CLOSED, OPEN, HALF_OPEN
+    this.nextAttempt = Date.now();
+  }
+  
+  async execute(fn) {
+    if (this.state === 'OPEN') {
+      if (Date.now() < this.nextAttempt) {
+        throw new Error('Circuit breaker is OPEN');
+      }
+      this.state = 'HALF_OPEN';
+    }
+    
+    try {
+      const result = await fn();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+  
+  onSuccess() {
+    this.failureCount = 0;
+    this.state = 'CLOSED';
+  }
+  
+  onFailure() {
+    this.failureCount++;
+    if (this.failureCount >= this.threshold) {
+      this.state = 'OPEN';
+      this.nextAttempt = Date.now() + this.timeout;
+    }
+  }
+}
+
+// 使用例
+const breaker = new CircuitBreaker();
+
+async function callAPI() {
+  return breaker.execute(async () => {
+    const response = await fetch('/v1/meal-plans');
+    return response.json();
+  });
+}
+```
+
+## データ管理
+
+### ページネーションの実装
+
+```javascript
+async function* fetchAllMealPlans() {
+  let page = 1;
+  let hasMore = true;
+  
+  while (hasMore) {
+    const response = await fetch(
+      `/v1/meal-plans?page=${page}&per_page=100`
+    );
+    const data = await response.json();
+    
+    yield data.data;
+    
+    hasMore = data.pagination.has_next;
+    page++;
+  }
+}
+
+// 使用例
+for await (const mealPlans of fetchAllMealPlans()) {
+  console.log(`Processing ${mealPlans.length} meal plans`);
+  // 処理
+}
+```
+
+### データの正規化
+
+```javascript
+// APIレスポンスを正規化
+function normalizeMealPlan(apiResponse) {
+  return {
+    id: apiResponse.id,
+    startDate: new Date(apiResponse.start_date),
+    endDate: new Date(apiResponse.end_date),
+    meals: apiResponse.meals.map(meal => ({
+      date: new Date(meal.date),
+      breakfast: normalizeRecipe(meal.breakfast),
+      lunch: normalizeRecipe(meal.lunch),
+      dinner: normalizeRecipe(meal.dinner)
+    })),
+    nutrition: {
+      calories: apiResponse.nutrition_summary.avg_daily_calories,
+      protein: apiResponse.nutrition_summary.protein,
+      carbs: apiResponse.nutrition_summary.carbohydrates,
+      fat: apiResponse.nutrition_summary.fat
+    }
+  };
+}
+```
+
+## テスト
+
+### モックの使用
+
+```javascript
+// テスト用のモックAPI
+class MockMealPlanAPI {
+  async generateMealPlan(params) {
+    return {
+      id: 'mock_mp_123',
+      duration_days: params.duration_days,
+      meals: this.generateMockMeals(params.duration_days)
+    };
+  }
+  
+  generateMockMeals(days) {
+    return Array.from({ length: days }, (_, i) => ({
+      date: new Date(Date.now() + i * 86400000).toISOString(),
+      breakfast: { name: 'Mock Breakfast', calories: 300 },
+      lunch: { name: 'Mock Lunch', calories: 500 },
+      dinner: { name: 'Mock Dinner', calories: 600 }
+    }));
+  }
+}
+
+// テスト
+describe('MealPlanService', () => {
+  it('should generate meal plan', async () => {
+    const api = new MockMealPlanAPI();
+    const result = await api.generateMealPlan({ duration_days: 7 });
+    
+    expect(result.meals).toHaveLength(7);
+    expect(result.meals[0].breakfast.name).toBe('Mock Breakfast');
+  });
+});
+```
+
+### 統合テスト
+
+```javascript
+// サンドボックス環境でのテスト
+const SANDBOX_API_KEY = process.env.MEALPLAN_SANDBOX_API_KEY;
+const SANDBOX_BASE_URL = 'https://sandbox-api.mealplan-ai.com/v1';
+
+describe('Integration Tests', () => {
+  it('should create and retrieve meal plan', async () => {
+    // 献立を生成
+    const createResponse = await fetch(`${SANDBOX_BASE_URL}/meal-plans/generate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SANDBOX_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ duration_days: 3 })
+    });
+    
+    const created = await createResponse.json();
+    expect(created.success).toBe(true);
+    
+    // 生成した献立を取得
+    const getResponse = await fetch(
+      `${SANDBOX_BASE_URL}/meal-plans/${created.data.id}`,
+      {
+        headers: { 'Authorization': `Bearer ${SANDBOX_API_KEY}` }
+      }
+    );
+    
+    const retrieved = await getResponse.json();
+    expect(retrieved.data.id).toBe(created.data.id);
+  });
+});
+```
+
+## モニタリング
+
+### メトリクスの収集
+
+```javascript
+class APIMetrics {
+  constructor() {
+    this.metrics = {
+      requests: 0,
+      errors: 0,
+      totalLatency: 0
+    };
+  }
+  
+  async trackRequest(fn) {
+    const start = Date.now();
+    this.metrics.requests++;
+    
+    try {
+      const result = await fn();
+      this.metrics.totalLatency += Date.now() - start;
+      return result;
+    } catch (error) {
+      this.metrics.errors++;
+      throw error;
+    }
+  }
+  
+  getStats() {
+    return {
+      totalRequests: this.metrics.requests,
+      errorRate: this.metrics.errors / this.metrics.requests,
+      avgLatency: this.metrics.totalLatency / this.metrics.requests
+    };
+  }
+}
+
+// 使用例
+const metrics = new APIMetrics();
+
+async function callAPI() {
+  return metrics.trackRequest(async () => {
+    const response = await fetch('/v1/meal-plans');
+    return response.json();
+  });
+}
+
+// 定期的にメトリクスを報告
+setInterval(() => {
+  console.log('API Metrics:', metrics.getStats());
+}, 60000);
+```
+
+## ドキュメント化
+
+### コードコメント
+
+```javascript
+/**
+ * 献立を生成します
+ * 
+ * @param {Object} params - 生成パラメータ
+ * @param {number} params.duration_days - 献立の日数（1-30）
+ * @param {string[]} [params.cuisine_types] - 料理のジャンル
+ * @param {number} [params.max_cooking_time] - 最大調理時間（分）
+ * @returns {Promise<MealPlan>} 生成された献立
+ * @throws {APIError} API呼び出しが失敗した場合
+ * 
+ * @example
+ * const mealPlan = await generateMealPlan({
+ *   duration_days: 7,
+ *   cuisine_types: ['japanese', 'western'],
+ *   max_cooking_time: 45
+ * });
+ */
+async function generateMealPlan(params) {
+  // 実装
+}
+```
+
+## チェックリスト
+
+開発前に確認すべき項目：
+
+<AccordionGroup>
+  <Accordion title="セキュリティ">
+    - [ ] APIキーは環境変数で管理
+    - [ ] HTTPSを使用
+    - [ ] クライアントサイドでAPIキーを使用していない
+    - [ ] 適切な認証スコープを使用
+  </Accordion>
+  
+  <Accordion title="パフォーマンス">
+    - [ ] キャッシングを実装
+    - [ ] 不要なリクエストを削減
+    - [ ] バッチ処理を活用
+    - [ ] 並列処理を活用
+  </Accordion>
+  
+  <Accordion title="エラーハンドリング">
+    - [ ] すべてのAPIコールにエラーハンドリング
+    - [ ] 適切なリトライロジック
+    - [ ] ユーザーフレンドリーなエラーメッセージ
+    - [ ] エラーログの記録
+  </Accordion>
+  
+  <Accordion title="テスト">
+    - [ ] ユニットテストを作成
+    - [ ] 統合テストを作成
+    - [ ] サンドボックス環境でテスト
+    - [ ] エラーケースのテスト
+  </Accordion>
+</AccordionGroup>
+
+## 次のステップ
+
+<CardGroup cols={2}>
+  <Card title="統合ガイド" icon="puzzle-piece" href="/integrations/webhooks">
+    外部サービスとの統合方法
+  </Card>
+  <Card title="サポート" icon="life-ring" href="mailto:support@mealplan-ai.com">
+    技術サポートに問い合わせ
+  </Card>
+</CardGroup>

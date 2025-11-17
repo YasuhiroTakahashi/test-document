@@ -1,97 +1,218 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "MealPlan AIへようこそ"
+description: "家族を持つエンジニアのための、AI駆動型献立提案サービス"
 ---
 
-## Setting up
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.png"
+  alt="MealPlan AI Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.png"
+  alt="MealPlan AI Hero Dark"
+/>
 
-Get your documentation site up and running in minutes.
+## MealPlan AIとは
+
+MealPlan AIは、忙しい日々を送る家族を持つエンジニアのために設計された、AI駆動型の献立提案SaaSサービスです。毎日の健康的な食事計画を簡単に立てられ、家族の栄養バランスを最適化します。
+
+<CardGroup cols={2}>
+  <Card
+    title="AIが献立を自動生成"
+    icon="wand-magic-sparkles"
+    href="/user-guide/meal-planning"
+  >
+    家族構成と栄養バランスを考慮した1週間分の献立を自動生成
+  </Card>
+  <Card
+    title="買い物リストを自動作成"
+    icon="cart-shopping"
+    href="/user-guide/shopping-list"
+  >
+    献立から必要な食材を自動で買い物リストに変換
+  </Card>
+  <Card
+    title="栄養バランスを可視化"
+    icon="chart-line"
+    href="/user-guide/nutrition"
+  >
+    カロリー、タンパク質、ビタミンなどの栄養素を分かりやすく表示
+  </Card>
+  <Card
+    title="アレルギー対応"
+    icon="shield-check"
+    href="/user-guide/family-profile"
+  >
+    家族のアレルギー情報や食材の好き嫌いを考慮した献立提案
+  </Card>
+</CardGroup>
+
+## 今すぐ始める
 
 <Card
-  title="Start here"
+  title="クイックスタート"
   icon="rocket"
   href="/quickstart"
   horizontal
 >
-  Follow our three step quickstart guide.
+  3ステップで最初の献立を生成してみましょう
 </Card>
 
-## Make it yours
+## 主な機能
 
-Design a docs site that looks great and empowers your users.
+### 🍽️ AI献立自動生成
 
-<Columns cols={2}>
+最新のAI技術を活用し、家族構成、年齢、アレルギー情報、食材の好みを考慮した最適な献立を自動生成します。
+
+<Accordion title="献立生成の特徴">
+  - **栄養バランス最適化**: 厚生労働省の栄養摂取基準に基づいた献立
+  - **季節の食材活用**: 旬の食材を取り入れた美味しい献立
+  - **調理時間考慮**: 平日は時短レシピ、週末はじっくり料理
+  - **バリエーション豊富**: 和食、洋食、中華など多様なジャンル
+</Accordion>
+
+### 🛒 スマート買い物リスト
+
+献立から必要な食材を自動で抽出し、スーパーの売り場別に整理された買い物リストを生成します。
+
+<Accordion title="買い物リストの特徴">
+  - **自動最適化**: 既存の在庫を考慮した必要量の計算
+  - **売り場別整理**: 効率的な買い物ができるよう売り場順に表示
+  - **スマホ連携**: アプリで買い物中にチェックリストとして活用
+  - **価格情報**: 近隣スーパーの価格情報を表示（一部地域）
+</Accordion>
+
+### 📊 栄養バランス分析
+
+毎日の食事の栄養バランスを可視化し、健康的な食生活をサポートします。
+
+<Accordion title="栄養分析の特徴">
+  - **詳細な栄養素表示**: カロリー、三大栄養素、ビタミン、ミネラル
+  - **週間レポート**: 1週間の栄養摂取状況をグラフで表示
+  - **目標設定**: 個人の健康目標に合わせた栄養管理
+  - **アラート機能**: 栄養バランスの偏りを自動検知
+</Accordion>
+
+### 👨‍👩‍👧‍👦 家族プロフィール管理
+
+家族一人ひとりの情報を登録し、最適な献立を提案します。
+
+<Accordion title="プロフィール管理の特徴">
+  - **詳細な情報登録**: 年齢、性別、活動量、健康状態
+  - **アレルギー管理**: 食物アレルギーを考慮した献立生成
+  - **好き嫌い設定**: 苦手な食材を避けた献立提案
+  - **食事制限対応**: ベジタリアン、ハラル、糖質制限など
+</Accordion>
+
+## 開発者向け
+
+MealPlan AIは、強力なAPIを提供しており、あなたのアプリケーションに献立機能を簡単に統合できます。
+
+<CardGroup cols={2}>
   <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
+    title="API概要"
+    icon="code"
     href="/api-reference/introduction"
   >
-    Auto-generate API documentation from OpenAPI specifications.
+    RESTful APIの基本的な使い方を学ぶ
+  </Card>
+  <Card
+    title="認証ガイド"
+    icon="key"
+    href="/developer/authentication"
+  >
+    OAuth 2.0とAPIキーによる認証方法
+  </Card>
+  <Card
+    title="献立API"
+    icon="utensils"
+    href="/api-reference/meal-plans/generate"
+  >
+    献立生成APIの詳細なドキュメント
+  </Card>
+  <Card
+    title="Webhook"
+    icon="webhook"
+    href="/integrations/webhooks"
+  >
+    リアルタイム通知の設定方法
+  </Card>
+</CardGroup>
+
+## 統合機能
+
+MealPlan AIは、日常的に使用するツールとシームレスに連携します。
+
+<Columns cols={3}>
+  <Card
+    title="Slack連携"
+    icon="slack"
+    href="/integrations/slack"
+  >
+    献立をSlackで共有
+  </Card>
+  <Card
+    title="カレンダー連携"
+    icon="calendar"
+    href="/integrations/calendar"
+  >
+    献立をカレンダーに登録
+  </Card>
+  <Card
+    title="Webhook"
+    icon="bell"
+    href="/integrations/webhooks"
+  >
+    カスタム通知の設定
   </Card>
 </Columns>
 
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
+## 料金プラン
 
 <Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
+  title="料金プランを見る"
+  icon="credit-card"
+  href="/pricing"
+  horizontal
 >
-  Browse our showcase of exceptional documentation sites.
+  無料プランから始めて、必要に応じてアップグレード
 </Card>
+
+## サポート
+
+<CardGroup cols={2}>
+  <Card
+    title="ドキュメント"
+    icon="book-open"
+    href="/user-guide/family-profile"
+  >
+    詳細なユーザーガイドと開発者向けドキュメント
+  </Card>
+  <Card
+    title="コミュニティ"
+    icon="users"
+    href="https://community.mealplan-ai.com"
+  >
+    ユーザーコミュニティで質問や情報交換
+  </Card>
+  <Card
+    title="サポート"
+    icon="life-ring"
+    href="mailto:support@mealplan-ai.com"
+  >
+    技術サポートチームにお問い合わせ
+  </Card>
+  <Card
+    title="ブログ"
+    icon="newspaper"
+    href="https://blog.mealplan-ai.com"
+  >
+    最新情報、レシピ、栄養に関する記事
+  </Card>
+</CardGroup>
+
+<Note>
+  **無料トライアル実施中**: 今なら14日間、すべての機能を無料でお試しいただけます。クレジットカード登録不要です。
+</Note>

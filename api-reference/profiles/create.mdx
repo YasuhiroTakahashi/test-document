@@ -1,0 +1,136 @@
+---
+title: "プロフィール作成"
+api: "POST /v1/profiles"
+description: "新しい家族プロフィールを作成します"
+---
+
+## 概要
+
+家族メンバーのプロフィールを作成します。
+
+## エンドポイント
+
+```
+POST https://api.mealplan-ai.com/v1/profiles
+```
+
+## 認証
+
+<ParamField header="Authorization" type="string" required>
+  Bearer トークン形式のAPIキーまたはOAuthアクセストークン
+</ParamField>
+
+## リクエストボディ
+
+<ParamField body="family_members" type="array" required>
+  家族メンバーの配列
+  
+  <Expandable title="family_members の要素">
+    <ParamField body="family_members[].name" type="string" required>
+      名前
+    </ParamField>
+    
+    <ParamField body="family_members[].age" type="integer" required>
+      年齢
+    </ParamField>
+    
+    <ParamField body="family_members[].gender" type="string" required>
+      性別（male/female/other）
+    </ParamField>
+    
+    <ParamField body="family_members[].allergies" type="array">
+      アレルギー情報
+    </ParamField>
+    
+    <ParamField body="family_members[].dislikes" type="array">
+      苦手な食材
+    </ParamField>
+    
+    <ParamField body="family_members[].dietary_restrictions" type="array">
+      食事制限
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## リクエスト例
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.mealplan-ai.com/v1/profiles \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "family_members": [
+      {
+        "name": "太郎",
+        "age": 35,
+        "gender": "male",
+        "allergies": ["えび", "かに"]
+      },
+      {
+        "name": "花子",
+        "age": 33,
+        "gender": "female",
+        "dietary_restrictions": ["vegetarian"]
+      }
+    ]
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.mealplan-ai.com/v1/profiles',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      family_members: [
+        {
+          name: '太郎',
+          age: 35,
+          gender: 'male',
+          allergies: ['えび', 'かに']
+        }
+      ]
+    })
+  }
+);
+
+const result = await response.json();
+```
+</CodeGroup>
+
+## レスポンス例
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "prof_abc123",
+    "family_members": [
+      {
+        "id": "member_001",
+        "name": "太郎",
+        "age": 35,
+        "gender": "male",
+        "allergies": ["えび", "かに"]
+      }
+    ],
+    "created_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+## 関連エンドポイント
+
+<CardGroup cols={2}>
+  <Card title="プロフィール取得" icon="user" href="/api-reference/profiles/get">
+    プロフィールを取得
+  </Card>
+  <Card title="プロフィール更新" icon="pen-to-square" href="/api-reference/profiles/update">
+    プロフィールを更新
+  </Card>
+</CardGroup>

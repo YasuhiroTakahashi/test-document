@@ -1,0 +1,320 @@
+---
+title: "Webhookイベント"
+description: "利用可能なWebhookイベントタイプの詳細"
+---
+
+## 概要
+
+MealPlan AIは、様々なイベントに対してWebhook通知を送信します。各イベントには固有のペイロード構造があります。
+
+## イベントタイプ
+
+### meal_plan.generated
+
+献立の生成が完了したときに送信されます。
+
+**ペイロード例:**
+
+```json
+{
+  "id": "evt_abc123",
+  "type": "meal_plan.generated",
+  "created_at": "2024-01-15T10:30:00Z",
+  "data": {
+    "meal_plan_id": "mp_abc123",
+    "duration_days": 7,
+    "start_date": "2024-01-15",
+    "end_date": "2024-01-21",
+    "shopping_list_id": "sl_xyz789",
+    "profile_id": "prof_default"
+  }
+}
+```
+
+### meal_plan.updated
+
+献立が更新されたときに送信されます。
+
+**ペイロード例:**
+
+```json
+{
+  "id": "evt_def456",
+  "type": "meal_plan.updated",
+  "created_at": "2024-01-16T14:20:00Z",
+  "data": {
+    "meal_plan_id": "mp_abc123",
+    "updated_fields": ["meals"],
+    "updated_at": "2024-01-16T14:20:00Z"
+  }
+}
+```
+
+### meal_plan.deleted
+
+献立が削除されたときに送信されます。
+
+**ペイロード例:**
+
+```json
+{
+  "id": "evt_ghi789",
+  "type": "meal_plan.deleted",
+  "created_at": "2024-01-16T15:30:00Z",
+  "data": {
+    "meal_plan_id": "mp_abc123",
+    "deleted_at": "2024-01-16T15:30:00Z"
+  }
+}
+```
+
+### shopping_list.generated
+
+買い物リストが生成されたときに送信されます。
+
+**ペイロード例:**
+
+```json
+{
+  "id": "evt_jkl012",
+  "type": "shopping_list.generated",
+  "created_at": "2024-01-15T10:30:00Z",
+  "data": {
+    "shopping_list_id": "sl_xyz789",
+    "meal_plan_id": "mp_abc123",
+    "total_items": 25,
+    "estimated_total_price": 3500
+  }
+}
+```
+
+### shopping_list.completed
+
+買い物リストのすべてのアイテムがチェックされたときに送信されます。
+
+**ペイロード例:**
+
+```json
+{
+  "id": "evt_mno345",
+  "type": "shopping_list.completed",
+  "created_at": "2024-01-16T18:00:00Z",
+  "data": {
+    "shopping_list_id": "sl_xyz789",
+    "completed_at": "2024-01-16T18:00:00Z"
+  }
+}
+```
+
+### profile.updated
+
+家族プロフィールが更新されたときに送信されます。
+
+**ペイロード例:**
+
+```json
+{
+  "id": "evt_pqr678",
+  "type": "profile.updated",
+  "created_at": "2024-01-15T11:00:00Z",
+  "data": {
+    "profile_id": "prof_abc123",
+    "updated_fields": ["allergies"],
+    "updated_at": "2024-01-15T11:00:00Z"
+  }
+}
+```
+
+## Webhookハンドラーの実装例
+
+### Node.js (Express)
+
+```javascript
+const express = require('express');
+const crypto = require('crypto');
+
+const app = express();
+app.use(express.json());
+
+// 署名検証ミドルウェア
+function verifyWebhookSignature(req, res, next) {
+  const signature = req.headers['x-mealplan-signature'];
+  const secret = process.env.WEBHOOK_SECRET;
+  
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(JSON.stringify(req.body))
+    .digest('hex');
+  
+  if (signature !== expectedSignature) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  next();
+}
+
+// Webhookエンドポイント
+app.post('/webhooks/mealplan', verifyWebhookSignature, async (req, res) => {
+  const event = req.body;
+  
+  // イベントIDの重複チェック（冪等性の確保）
+  const isDuplicate = await checkEventId(event.id);
+  if (isDuplicate) {
+    return res.status(200).send('Already processed');
+  }
+  
+  // イベントタイプごとの処理
+  switch (event.type) {
+    case 'meal_plan.generated':
+      await handleMealPlanGenerated(event.data);
+      break;
+    
+    case 'shopping_list.generated':
+      await handleShoppingListGenerated(event.data);
+      break;
+    
+    case 'meal_plan.updated':
+      await handleMealPlanUpdated(event.data);
+      break;
+    
+    default:
+      console.log('Unknown event type:', event.type);
+  }
+  
+  // イベントIDを記録
+  await saveEventId(event.id);
+  
+  // 迅速に応答
+  res.status(200).send('OK');
+});
+
+async function handleMealPlanGenerated(data) {
+  console.log('New meal plan generated:', data.meal_plan_id);
+  // 通知を送信、データベースを更新など
+}
+
+async function handleShoppingListGenerated(data) {
+  console.log('Shopping list generated:', data.shopping_list_id);
+  // ユーザーに通知を送信
+}
+
+async function handleMealPlanUpdated(data) {
+  console.log('Meal plan updated:', data.meal_plan_id);
+  // キャッシュを更新
+}
+
+app.listen(3000);
+```
+
+### Python (Flask)
+
+```python
+from flask import Flask, request, jsonify
+import hmac
+import hashlib
+import json
+
+app = Flask(__name__)
+
+def verify_signature(payload, signature, secret):
+    expected_signature = hmac.new(
+        secret.encode(),
+        json.dumps(payload).encode(),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected_signature)
+
+@app.route('/webhooks/mealplan', methods=['POST'])
+def webhook_handler():
+    signature = request.headers.get('X-Mealplan-Signature')
+    secret = os.getenv('WEBHOOK_SECRET')
+    
+    if not verify_signature(request.json, signature, secret):
+        return jsonify({'error': 'Invalid signature'}), 401
+    
+    event = request.json
+    event_type = event['type']
+    
+    if event_type == 'meal_plan.generated':
+        handle_meal_plan_generated(event['data'])
+    elif event_type == 'shopping_list.generated':
+        handle_shopping_list_generated(event['data'])
+    
+    return jsonify({'status': 'ok'}), 200
+
+def handle_meal_plan_generated(data):
+    print(f"New meal plan: {data['meal_plan_id']}")
+
+def handle_shopping_list_generated(data):
+    print(f"Shopping list: {data['shopping_list_id']}")
+
+if __name__ == '__main__':
+    app.run()
+```
+
+## テスト
+
+Webhookをテストするには、以下の方法があります：
+
+### 1. ローカルトンネル
+
+ngrokなどを使用してローカル環境を公開：
+
+```bash
+ngrok http 3000
+```
+
+### 2. Webhook再送信
+
+ダッシュボードから過去のWebhookイベントを再送信できます。
+
+### 3. テストイベント送信
+
+```bash
+curl -X POST https://your-app.com/webhooks/mealplan \
+  -H "Content-Type: application/json" \
+  -H "X-Mealplan-Signature: test_signature" \
+  -d '{
+    "id": "evt_test",
+    "type": "meal_plan.generated",
+    "created_at": "2024-01-15T10:30:00Z",
+    "data": {
+      "meal_plan_id": "mp_test"
+    }
+  }'
+```
+
+## トラブルシューティング
+
+<AccordionGroup>
+  <Accordion title="Webhookが届かない">
+    - URLがHTTPSであることを確認
+    - ファイアウォール設定を確認
+    - エンドポイントが5秒以内に応答しているか確認
+  </Accordion>
+  
+  <Accordion title="署名検証が失敗する">
+    - シークレットが正しいか確認
+    - ペイロードを変更せずに検証しているか確認
+    - 文字エンコーディングを確認
+  </Accordion>
+  
+  <Accordion title="重複イベントを受信">
+    - イベントIDを記録して重複を防ぐ
+    - 冪等性を確保した処理を実装
+  </Accordion>
+</AccordionGroup>
+
+## 関連ドキュメント
+
+<CardGroup cols={2}>
+  <Card title="Webhook設定" icon="gear" href="/api-reference/webhooks/setup">
+    Webhookの作成と管理
+  </Card>
+  <Card title="統合ガイド" icon="puzzle-piece" href="/integrations/webhooks">
+    Webhookの実装ガイド
+  </Card>
+  <Card title="セキュリティ" icon="shield" href="/developer/best-practices">
+    セキュリティのベストプラクティス
+  </Card>
+</CardGroup>

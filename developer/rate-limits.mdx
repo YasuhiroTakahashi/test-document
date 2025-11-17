@@ -1,0 +1,327 @@
+---
+title: "レート制限"
+description: "API使用量の制限と効率的な利用方法"
+---
+
+## 概要
+
+MealPlan AI APIは、サービスの安定性を保つため、プランごとにレート制限を設けています。
+
+## レート制限の詳細
+
+### プラン別の制限
+
+| プラン | リクエスト数/日 | リクエスト数/分 | 同時接続数 |
+|--------|----------------|----------------|-----------|
+| 無料 | 100 | 10 | 2 |
+| ベーシック | 1,000 | 50 | 5 |
+| プレミアム | 10,000 | 200 | 20 |
+| エンタープライズ | 無制限 | カスタム | カスタム |
+
+### エンドポイント別の制限
+
+一部のエンドポイントには、追加の制限があります：
+
+| エンドポイント | 制限 | 理由 |
+|---------------|------|------|
+| `/meal-plans/generate` | 10回/時間 | AI処理のコスト |
+| `/recipes/search` | 100回/時間 | データベース負荷 |
+| `/webhooks` | 5回/時間 | 設定変更の制限 |
+
+## レート制限ヘッダー
+
+すべてのAPIレスポンスには、レート制限に関する情報がヘッダーに含まれます：
+
+```http
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 995
+X-RateLimit-Reset: 1705315200
+```
+
+### ヘッダーの説明
+
+- `X-RateLimit-Limit`: 1日あたりの制限数
+- `X-RateLimit-Remaining`: 残りのリクエスト数
+- `X-RateLimit-Reset`: 制限がリセットされるUNIXタイムスタンプ
+
+## レート制限超過時の対応
+
+### 429 Too Many Requests
+
+レート制限を超えると、`429`ステータスコードが返されます：
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "rate_limit_exceeded",
+    "message": "レート制限を超えました",
+    "details": {
+      "limit": 1000,
+      "reset_at": "2024-01-16T00:00:00Z"
+    }
+  }
+}
+```
+
+### Retry-Afterヘッダー
+
+`429`レスポンスには、`Retry-After`ヘッダーが含まれます：
+
+```http
+Retry-After: 3600
+```
+
+この値（秒）だけ待ってから、再試行してください。
+
+## リトライロジックの実装
+
+### 指数バックオフ
+
+```javascript
+async function apiRequestWithRetry(url, options, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url, options);
+      
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, i) * 1000;
+        
+        console.log(`Rate limited. Waiting ${waitTime}ms before retry...`);
+        await sleep(waitTime);
+        continue;
+      }
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      await sleep(Math.pow(2, i) * 1000);
+    }
+  }
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+```
+
+### レート制限の監視
+
+```javascript
+class RateLimitMonitor {
+  constructor() {
+    this.limit = null;
+    this.remaining = null;
+    this.resetAt = null;
+  }
+  
+  updateFromHeaders(headers) {
+    this.limit = parseInt(headers.get('X-RateLimit-Limit'));
+    this.remaining = parseInt(headers.get('X-RateLimit-Remaining'));
+    this.resetAt = new Date(parseInt(headers.get('X-RateLimit-Reset')) * 1000);
+  }
+  
+  shouldWait() {
+    if (this.remaining === null) return false;
+    
+    // 残り10%を切ったら警告
+    return this.remaining < this.limit * 0.1;
+  }
+  
+  getTimeUntilReset() {
+    if (!this.resetAt) return null;
+    return Math.max(0, this.resetAt - Date.now());
+  }
+}
+
+// 使用例
+const monitor = new RateLimitMonitor();
+
+async function makeRequest(url, options) {
+  const response = await fetch(url, options);
+  monitor.updateFromHeaders(response.headers);
+  
+  if (monitor.shouldWait()) {
+    console.warn(`Rate limit warning: ${monitor.remaining} requests remaining`);
+  }
+  
+  return response;
+}
+```
+
+## レート制限の最適化
+
+### 1. リクエストのバッチ処理
+
+複数のリクエストをまとめて処理：
+
+```javascript
+// ❌ 非効率
+for (const id of mealPlanIds) {
+  await fetch(`/v1/meal-plans/${id}`);
+}
+
+// ✅ 効率的
+const mealPlans = await fetch('/v1/meal-plans', {
+  method: 'POST',
+  body: JSON.stringify({ ids: mealPlanIds })
+});
+```
+
+### 2. キャッシングの活用
+
+頻繁にアクセスするデータをキャッシュ：
+
+```javascript
+class APIClient {
+  constructor() {
+    this.cache = new Map();
+    this.cacheTTL = 5 * 60 * 1000; // 5分
+  }
+  
+  async getMealPlan(id) {
+    const cacheKey = `meal-plan-${id}`;
+    const cached = this.cache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
+      return cached.data;
+    }
+    
+    const data = await fetch(`/v1/meal-plans/${id}`).then(r => r.json());
+    this.cache.set(cacheKey, { data, timestamp: Date.now() });
+    
+    return data;
+  }
+}
+```
+
+### 3. Webhookの活用
+
+ポーリングの代わりにWebhookを使用：
+
+```javascript
+// ❌ ポーリング（レート制限を消費）
+setInterval(async () => {
+  const status = await fetch('/v1/meal-plans/status');
+  // ...
+}, 5000);
+
+// ✅ Webhook（レート制限を消費しない）
+app.post('/webhooks/mealplan', (req, res) => {
+  const event = req.body;
+  if (event.type === 'meal_plan.generated') {
+    // 処理
+  }
+  res.status(200).send('OK');
+});
+```
+
+### 4. 条件付きリクエスト
+
+ETagを使用して不要なリクエストを削減：
+
+```javascript
+let etag = null;
+
+async function getMealPlan(id) {
+  const headers = {
+    'Authorization': 'Bearer YOUR_API_KEY'
+  };
+  
+  if (etag) {
+    headers['If-None-Match'] = etag;
+  }
+  
+  const response = await fetch(`/v1/meal-plans/${id}`, { headers });
+  
+  if (response.status === 304) {
+    // データは変更されていない（キャッシュを使用）
+    return cachedData;
+  }
+  
+  etag = response.headers.get('ETag');
+  const data = await response.json();
+  return data;
+}
+```
+
+## レート制限の確認
+
+### ダッシュボードで確認
+
+[ダッシュボード](https://app.mealplan-ai.com/usage)で、現在の使用状況を確認できます：
+
+- 今日の使用量
+- 月間の使用量
+- エンドポイント別の使用状況
+- レート制限の履歴
+
+### APIで確認
+
+```bash
+curl -X GET https://api.mealplan-ai.com/v1/usage \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+レスポンス：
+
+```json
+{
+  "success": true,
+  "data": {
+    "daily_limit": 1000,
+    "daily_used": 245,
+    "daily_remaining": 755,
+    "reset_at": "2024-01-16T00:00:00Z"
+  }
+}
+```
+
+## プランのアップグレード
+
+レート制限が不足する場合は、プランをアップグレードしてください：
+
+<CardGroup cols={2}>
+  <Card title="料金プラン" icon="credit-card" href="/pricing">
+    プランの詳細を確認
+  </Card>
+  <Card title="エンタープライズ" icon="building" href="mailto:sales@mealplan-ai.com">
+    カスタムプランを相談
+  </Card>
+</CardGroup>
+
+## ベストプラクティス
+
+<AccordionGroup>
+  <Accordion title="レート制限を監視する">
+    レスポンスヘッダーを常に確認し、残りのリクエスト数を把握してください。
+  </Accordion>
+  
+  <Accordion title="適切なリトライロジックを実装する">
+    指数バックオフを使用し、Retry-Afterヘッダーを尊重してください。
+  </Accordion>
+  
+  <Accordion title="キャッシングを活用する">
+    頻繁にアクセスするデータはキャッシュして、不要なリクエストを削減してください。
+  </Accordion>
+  
+  <Accordion title="Webhookを使用する">
+    リアルタイム更新が必要な場合は、ポーリングではなくWebhookを使用してください。
+  </Accordion>
+</AccordionGroup>
+
+## 次のステップ
+
+<CardGroup cols={2}>
+  <Card title="エラーハンドリング" icon="triangle-exclamation" href="/developer/error-handling">
+    エラーの適切な処理方法
+  </Card>
+  <Card title="ベストプラクティス" icon="star" href="/developer/best-practices">
+    API使用のベストプラクティス
+  </Card>
+</CardGroup>

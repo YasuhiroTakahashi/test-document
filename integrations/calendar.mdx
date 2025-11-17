@@ -1,0 +1,497 @@
+---
+title: "カレンダー連携"
+description: "献立をGoogleカレンダーやAppleカレンダーに自動追加"
+---
+
+## 概要
+
+カレンダー連携を使用すると、生成された献立を自動的にカレンダーに追加できます。家族全員が献立を確認でき、買い物のタイミングも把握しやすくなります。
+
+<img src="/images/calendar-integration.png" alt="カレンダー連携の例" />
+
+## 対応カレンダー
+
+- Google Calendar
+- Apple Calendar (iCloud)
+- Microsoft Outlook
+- その他のiCalendar対応カレンダー
+
+## Googleカレンダー連携
+
+<Steps>
+  <Step title="Google Cloud Projectを作成">
+    [Google Cloud Console](https://console.cloud.google.com/)で新しいプロジェクトを作成します。
+  </Step>
+  
+  <Step title="Calendar APIを有効化">
+    1. APIとサービス > ライブラリ を開く
+    2. "Google Calendar API" を検索
+    3. "有効にする" をクリック
+  </Step>
+  
+  <Step title="OAuth認証情報を作成">
+    1. APIとサービス > 認証情報 を開く
+    2. "認証情報を作成" > "OAuthクライアントID" を選択
+    3. アプリケーションの種類を選択
+    4. リダイレクトURIを設定
+  </Step>
+  
+  <Step title="MealPlan AIと連携">
+    取得したクライアントIDとシークレットをMealPlan AIに登録します。
+    
+    ```bash
+    curl -X POST https://api.mealplan-ai.com/v1/integrations/calendar \
+      -H "Authorization: Bearer YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "provider": "google",
+        "client_id": "your-client-id",
+        "client_secret": "your-client-secret",
+        "calendar_id": "primary"
+      }'
+    ```
+  </Step>
+</Steps>
+
+## 使用方法
+
+### 献立をカレンダーに追加
+
+献立生成時に自動的にカレンダーに追加するよう設定できます。
+
+```javascript
+const response = await fetch('https://api.mealplan-ai.com/v1/meal-plans', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    duration_days: 7,
+    family_profile_id: 'fp_abc123',
+    integrations: {
+      calendar: {
+        enabled: true,
+        provider: 'google',
+        calendar_id: 'primary',
+        event_settings: {
+          breakfast_time: '07:00',
+          lunch_time: '12:00',
+          dinner_time: '18:00',
+          reminders: [
+            { method: 'popup', minutes: 60 }
+          ]
+        }
+      }
+    }
+  })
+});
+```
+
+### 作成されるイベント
+
+各食事ごとに以下のようなイベントが作成されます：
+
+```
+タイトル: 🌅 朝食: 和風トースト、ヨーグルト
+時間: 2024年1月15日 7:00 - 7:30
+説明:
+  献立: 和風トースト、ヨーグルト
+  カロリー: 350kcal
+  調理時間: 10分
+  
+  レシピ: https://app.mealplan-ai.com/recipes/rec_abc123
+  買い物リスト: https://app.mealplan-ai.com/shopping/sl_xyz789
+```
+
+## 実装例
+
+### Node.js + Google Calendar API
+
+```javascript
+const { google } = require('googleapis');
+
+// OAuth2クライアントを初期化
+const oauth2Client = new google.auth.OAuth2(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.REDIRECT_URI
+);
+
+// アクセストークンを設定
+oauth2Client.setCredentials({
+  access_token: process.env.ACCESS_TOKEN,
+  refresh_token: process.env.REFRESH_TOKEN
+});
+
+const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+// 献立をカレンダーに追加
+async function addMealToCalendar(meal, date, mealType) {
+  const timeMap = {
+    breakfast: { start: '07:00', end: '07:30' },
+    lunch: { start: '12:00', end: '12:30' },
+    dinner: { start: '18:00', end: '19:00' }
+  };
+  
+  const times = timeMap[mealType];
+  const startDateTime = `${date}T${times.start}:00`;
+  const endDateTime = `${date}T${times.end}:00`;
+  
+  const event = {
+    summary: `${getMealEmoji(mealType)} ${getMealLabel(mealType)}: ${meal.name}`,
+    description: `
+献立: ${meal.name}
+カロリー: ${meal.calories}kcal
+調理時間: ${meal.cooking_time}分
+
+レシピ: ${meal.recipe_url}
+買い物リスト: ${meal.shopping_list_url}
+    `.trim(),
+    start: {
+      dateTime: startDateTime,
+      timeZone: 'Asia/Tokyo'
+    },
+    end: {
+      dateTime: endDateTime,
+      timeZone: 'Asia/Tokyo'
+    },
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: 'popup', minutes: 60 }
+      ]
+    },
+    colorId: getMealColor(mealType)
+  };
+  
+  const response = await calendar.events.insert({
+    calendarId: 'primary',
+    resource: event
+  });
+  
+  return response.data;
+}
+
+function getMealEmoji(mealType) {
+  const emojis = {
+    breakfast: '🌅',
+    lunch: '🌞',
+    dinner: '🌙'
+  };
+  return emojis[mealType] || '🍽️';
+}
+
+function getMealLabel(mealType) {
+  const labels = {
+    breakfast: '朝食',
+    lunch: '昼食',
+    dinner: '夕食'
+  };
+  return labels[mealType];
+}
+
+function getMealColor(mealType) {
+  // Googleカレンダーのカラーコード
+  const colors = {
+    breakfast: '5', // 黄色
+    lunch: '9',     // 青
+    dinner: '11'    // 赤
+  };
+  return colors[mealType];
+}
+
+// 1週間分の献立を追加
+async function addWeeklyMealPlan(mealPlan) {
+  const promises = [];
+  
+  for (const day of mealPlan.days) {
+    for (const [mealType, meal] of Object.entries(day.meals)) {
+      promises.push(addMealToCalendar(meal, day.date, mealType));
+    }
+  }
+  
+  await Promise.all(promises);
+  console.log('献立をカレンダーに追加しました');
+}
+```
+
+### Python + Google Calendar API
+
+```python
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from datetime import datetime, timedelta
+
+def add_meal_to_calendar(meal, date, meal_type):
+    """献立をGoogleカレンダーに追加"""
+    
+    creds = Credentials.from_authorized_user_file('token.json')
+    service = build('calendar', 'v3', credentials=creds)
+    
+    time_map = {
+        'breakfast': {'start': '07:00', 'end': '07:30'},
+        'lunch': {'start': '12:00', 'end': '12:30'},
+        'dinner': {'start': '18:00', 'end': '19:00'}
+    }
+    
+    times = time_map[meal_type]
+    start_datetime = f"{date}T{times['start']}:00"
+    end_datetime = f"{date}T{times['end']}:00"
+    
+    event = {
+        'summary': f"{get_meal_emoji(meal_type)} {get_meal_label(meal_type)}: {meal['name']}",
+        'description': f"""
+献立: {meal['name']}
+カロリー: {meal['calories']}kcal
+調理時間: {meal['cooking_time']}分
+
+レシピ: {meal['recipe_url']}
+買い物リスト: {meal['shopping_list_url']}
+        """.strip(),
+        'start': {
+            'dateTime': start_datetime,
+            'timeZone': 'Asia/Tokyo'
+        },
+        'end': {
+            'dateTime': end_datetime,
+            'timeZone': 'Asia/Tokyo'
+        },
+        'reminders': {
+            'useDefault': False,
+            'overrides': [
+                {'method': 'popup', 'minutes': 60}
+            ]
+        },
+        'colorId': get_meal_color(meal_type)
+    }
+    
+    event = service.events().insert(
+        calendarId='primary',
+        body=event
+    ).execute()
+    
+    return event
+
+def get_meal_emoji(meal_type):
+    emojis = {
+        'breakfast': '🌅',
+        'lunch': '🌞',
+        'dinner': '🌙'
+    }
+    return emojis.get(meal_type, '🍽️')
+
+def get_meal_label(meal_type):
+    labels = {
+        'breakfast': '朝食',
+        'lunch': '昼食',
+        'dinner': '夕食'
+    }
+    return labels[meal_type]
+
+def get_meal_color(meal_type):
+    colors = {
+        'breakfast': '5',  # 黄色
+        'lunch': '9',      # 青
+        'dinner': '11'     # 赤
+    }
+    return colors[meal_type]
+```
+
+## iCalendar形式でエクスポート
+
+任意のカレンダーアプリで使用できるiCalendar形式でエクスポートできます。
+
+```javascript
+async function exportToICalendar(mealPlanId) {
+  const response = await fetch(
+    `https://api.mealplan-ai.com/v1/meal-plans/${mealPlanId}/export/ical`,
+    {
+      headers: {
+        'Authorization': 'Bearer YOUR_API_KEY'
+      }
+    }
+  );
+  
+  const icalData = await response.text();
+  
+  // ファイルとして保存
+  const blob = new Blob([icalData], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'meal-plan.ics';
+  a.click();
+}
+```
+
+生成されるiCalendarファイルの例：
+
+```ics
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//MealPlan AI//JP
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+
+BEGIN:VEVENT
+UID:meal_abc123@mealplan-ai.com
+DTSTAMP:20240115T000000Z
+DTSTART:20240115T070000
+DTEND:20240115T073000
+SUMMARY:🌅 朝食: 和風トースト、ヨーグルト
+DESCRIPTION:献立: 和風トースト、ヨーグルト\nカロリー: 350kcal\n調理時間: 10分
+LOCATION:自宅
+BEGIN:VALARM
+TRIGGER:-PT60M
+ACTION:DISPLAY
+DESCRIPTION:献立のリマインダー
+END:VALARM
+END:VEVENT
+
+END:VCALENDAR
+```
+
+## 高度な機能
+
+### 買い物日のリマインダー
+
+買い物に行く日を自動的にカレンダーに追加します。
+
+```javascript
+async function addShoppingReminder(shoppingListId, date) {
+  const event = {
+    summary: '🛒 買い物',
+    description: '今週の食材を購入\n\n買い物リスト: https://app.mealplan-ai.com/shopping/' + shoppingListId,
+    start: {
+      dateTime: `${date}T09:00:00`,
+      timeZone: 'Asia/Tokyo'
+    },
+    end: {
+      dateTime: `${date}T10:00:00`,
+      timeZone: 'Asia/Tokyo'
+    },
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: 'popup', minutes: 1440 }, // 前日
+        { method: 'popup', minutes: 60 }    // 1時間前
+      ]
+    }
+  };
+  
+  await calendar.events.insert({
+    calendarId: 'primary',
+    resource: event
+  });
+}
+```
+
+### 調理時間の考慮
+
+調理時間に応じてイベントの長さを調整します。
+
+```javascript
+function calculateEventDuration(meal) {
+  const baseTime = 30; // 基本30分
+  const cookingTime = meal.cooking_time || 0;
+  return Math.max(baseTime, cookingTime + 10); // 調理時間 + 準備10分
+}
+```
+
+### 家族カレンダーの共有
+
+家族全員が見られる共有カレンダーを作成します。
+
+```javascript
+async function createFamilyCalendar() {
+  const calendar = {
+    summary: '家族の献立',
+    description: 'MealPlan AIで生成された献立',
+    timeZone: 'Asia/Tokyo'
+  };
+  
+  const response = await calendarService.calendars.insert({
+    resource: calendar
+  });
+  
+  // 家族メンバーに共有
+  await calendarService.acl.insert({
+    calendarId: response.data.id,
+    resource: {
+      role: 'reader',
+      scope: {
+        type: 'user',
+        value: 'family-member@example.com'
+      }
+    }
+  });
+  
+  return response.data.id;
+}
+```
+
+## ベストプラクティス
+
+### 1. 適切な時間設定
+
+家族の生活リズムに合わせて食事時間を設定します。
+
+```javascript
+const mealTimes = {
+  breakfast: '07:00', // 朝7時
+  lunch: '12:00',     // 昼12時
+  dinner: '18:00'     // 夕方6時
+};
+```
+
+### 2. リマインダーの活用
+
+調理開始時間に合わせてリマインダーを設定します。
+
+```javascript
+const reminders = [
+  { method: 'popup', minutes: 60 },  // 1時間前
+  { method: 'email', minutes: 120 }  // 2時間前（メール）
+];
+```
+
+### 3. カラーコーディング
+
+食事の種類ごとに色分けして視認性を向上させます。
+
+## トラブルシューティング
+
+<AccordionGroup>
+  <Accordion title="イベントが作成されない">
+    - OAuth認証が正しく完了しているか確認
+    - Calendar APIが有効化されているか確認
+    - 必要な権限（スコープ）が付与されているか確認
+    - カレンダーIDが正しいか確認
+  </Accordion>
+  
+  <Accordion title="時間がずれる">
+    - タイムゾーン設定を確認（Asia/Tokyo）
+    - サーバーとクライアントの時刻が同期しているか確認
+  </Accordion>
+  
+  <Accordion title="リマインダーが届かない">
+    - カレンダーアプリの通知設定を確認
+    - デバイスの通知許可を確認
+    - リマインダーの設定が正しいか確認
+  </Accordion>
+</AccordionGroup>
+
+## 次のステップ
+
+<CardGroup cols={2}>
+  <Card title="Webhook統合" icon="webhook" href="/integrations/webhooks">
+    リアルタイム通知を受け取る
+  </Card>
+  <Card title="Slack連携" icon="slack" href="/integrations/slack">
+    Slackで献立を共有
+  </Card>
+  <Card title="Google Calendar API" icon="book" href="https://developers.google.com/calendar">
+    Google Calendar APIドキュメント
+  </Card>
+</CardGroup>

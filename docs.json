@@ -1,68 +1,103 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "MealPlan AI",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#F97316",
+    "light": "#FB923C",
+    "dark": "#EA580C"
   },
   "favicon": "/favicon.svg",
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "ガイド",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "はじめに",
             "pages": [
               "index",
               "quickstart",
-              "development"
+              "pricing"
             ]
           },
           {
-            "group": "Customization",
+            "group": "ユーザーガイド",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "user-guide/family-profile",
+              "user-guide/meal-planning",
+              "user-guide/shopping-list",
+              "user-guide/nutrition"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "開発者向けガイド",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "developer/authentication",
+              "developer/rate-limits",
+              "developer/error-handling",
+              "developer/best-practices"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "統合ガイド",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "integrations/webhooks",
+              "integrations/slack",
+              "integrations/calendar"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "APIリファレンス",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "API概要",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/introduction",
+              "api-reference/authentication"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "献立API",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/meal-plans/list",
+              "api-reference/meal-plans/generate",
+              "api-reference/meal-plans/get",
+              "api-reference/meal-plans/update",
+              "api-reference/meal-plans/delete"
+            ]
+          },
+          {
+            "group": "レシピAPI",
+            "pages": [
+              "api-reference/recipes/search",
+              "api-reference/recipes/get",
+              "api-reference/recipes/favorites"
+            ]
+          },
+          {
+            "group": "買い物リストAPI",
+            "pages": [
+              "api-reference/shopping/generate",
+              "api-reference/shopping/get",
+              "api-reference/shopping/items"
+            ]
+          },
+          {
+            "group": "家族プロフィールAPI",
+            "pages": [
+              "api-reference/profiles/get",
+              "api-reference/profiles/create",
+              "api-reference/profiles/update"
+            ]
+          },
+          {
+            "group": "Webhook",
+            "pages": [
+              "api-reference/webhooks/setup",
+              "api-reference/webhooks/events"
             ]
           }
         ]
@@ -71,13 +106,18 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "ダッシュボード",
+          "href": "https://app.mealplan-ai.com",
+          "icon": "gauge"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
+          "anchor": "コミュニティ",
+          "href": "https://community.mealplan-ai.com",
+          "icon": "users"
+        },
+        {
+          "anchor": "ブログ",
+          "href": "https://blog.mealplan-ai.com",
           "icon": "newspaper"
         }
       ]
@@ -90,33 +130,33 @@
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "label": "サポート",
+        "href": "mailto:support@mealplan-ai.com"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "label": "無料で始める",
+      "href": "https://app.mealplan-ai.com/signup"
     }
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "x": "https://x.com/mealplan_ai",
+      "github": "https://github.com/mealplan-ai",
+      "linkedin": "https://linkedin.com/company/mealplan-ai"
     }
   }
 }

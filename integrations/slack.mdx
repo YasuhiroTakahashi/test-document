@@ -1,0 +1,415 @@
+---
+title: "Slack連携"
+description: "Slackで献立を家族と共有し、コミュニケーションを円滑に"
+---
+
+## 概要
+
+Slack連携を使用すると、生成された献立や買い物リストを自動的にSlackチャンネルに投稿できます。家族やチームメンバーと簡単に献立を共有し、フィードバックを受け取ることができます。
+
+<img src="/images/slack-integration.png" alt="Slack連携の例" />
+
+## セットアップ
+
+<Steps>
+  <Step title="Slackアプリを作成">
+    [Slack API](https://api.slack.com/apps)にアクセスし、新しいアプリを作成します。
+    
+    1. "Create New App" をクリック
+    2. "From scratch" を選択
+    3. アプリ名を入力（例: MealPlan AI）
+    4. ワークスペースを選択
+  </Step>
+  
+  <Step title="権限を設定">
+    OAuth & Permissions画面で、以下のスコープを追加します：
+    
+    - `chat:write` - メッセージを投稿
+    - `chat:write.public` - パブリックチャンネルに投稿
+    - `files:write` - ファイルをアップロード
+    
+    <img src="/images/slack-scopes.png" alt="Slackスコープ設定" />
+  </Step>
+  
+  <Step title="アプリをインストール">
+    "Install to Workspace" をクリックし、アプリをワークスペースにインストールします。
+    
+    インストール後、Bot User OAuth Tokenが表示されます。このトークンを保存してください。
+  </Step>
+  
+  <Step title="MealPlan AIと連携">
+    MealPlan AIダッシュボードの統合設定で、Slackトークンを登録します。
+    
+    ```bash
+    curl -X POST https://api.mealplan-ai.com/v1/integrations/slack \
+      -H "Authorization: Bearer YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "slack_token": "xoxb-your-slack-token",
+        "default_channel": "#meal-planning"
+      }'
+    ```
+  </Step>
+</Steps>
+
+## 使用方法
+
+### 献立を投稿
+
+献立生成時に自動的にSlackに投稿するよう設定できます。
+
+```javascript
+const response = await fetch('https://api.mealplan-ai.com/v1/meal-plans', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    duration_days: 7,
+    family_profile_id: 'fp_abc123',
+    integrations: {
+      slack: {
+        enabled: true,
+        channel: '#meal-planning',
+        notify_users: ['@user1', '@user2']
+      }
+    }
+  })
+});
+```
+
+### 投稿される内容
+
+Slackには以下の情報が投稿されます：
+
+```
+🍽️ 今週の献立が完成しました！
+
+📅 期間: 2024年1月15日 〜 1月21日
+
+【月曜日】
+🌅 朝食: 和風トースト、ヨーグルト
+🌞 昼食: 鶏肉の照り焼き丼
+🌙 夕食: サーモンのムニエル、野菜サラダ
+
+【火曜日】
+...
+
+🛒 買い物リスト: https://app.mealplan-ai.com/shopping/sl_xyz789
+📊 栄養バランス: https://app.mealplan-ai.com/nutrition/mp_abc123
+```
+
+## 高度な使用例
+
+### カスタムメッセージ
+
+Block Kitを使用してリッチなメッセージを作成できます。
+
+```javascript
+const slackMessage = {
+  blocks: [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "🍽️ 今週の献立"
+      }
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "*期間:* 2024年1月15日 〜 1月21日"
+      }
+    },
+    {
+      type: "divider"
+    },
+    {
+      type: "section",
+      fields: [
+        {
+          type: "mrkdwn",
+          text: "*月曜日*\n朝: 和風トースト\n昼: 照り焼き丼\n夕: サーモンムニエル"
+        },
+        {
+          type: "mrkdwn",
+          text: "*火曜日*\n朝: フレンチトースト\n昼: パスタ\n夕: 豚の生姜焼き"
+        }
+      ]
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "買い物リストを見る"
+          },
+          url: "https://app.mealplan-ai.com/shopping/sl_xyz789"
+        },
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "栄養バランスを確認"
+          },
+          url: "https://app.mealplan-ai.com/nutrition/mp_abc123"
+        }
+      ]
+    }
+  ]
+};
+
+// Slackに投稿
+await fetch('https://slack.com/api/chat.postMessage', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${SLACK_TOKEN}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    channel: '#meal-planning',
+    ...slackMessage
+  })
+});
+```
+
+### インタラクティブな投票
+
+家族に献立の好みを聞くことができます。
+
+```javascript
+const pollMessage = {
+  blocks: [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "今週の献立案ができました！どちらがいいですか？"
+      }
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "👍 案A: 和食中心"
+          },
+          value: "plan_a",
+          action_id: "vote_plan_a"
+        },
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "👍 案B: 洋食中心"
+          },
+          value: "plan_b",
+          action_id: "vote_plan_b"
+        }
+      ]
+    }
+  ]
+};
+```
+
+### 買い物リマインダー
+
+買い物の日にリマインダーを送信します。
+
+```javascript
+// 毎週土曜日の朝9時に実行
+async function sendShoppingReminder() {
+  const shoppingList = await getShoppingList();
+  
+  await fetch('https://slack.com/api/chat.postMessage', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SLACK_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      channel: '#meal-planning',
+      text: '🛒 今日は買い物の日です！',
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "*🛒 今日は買い物の日です！*\n\n今週の買い物リスト（全25品）："
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: shoppingList.items.slice(0, 10).map(item => 
+              `• ${item.name} (${item.quantity})`
+            ).join('\n')
+          }
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: "完全なリストを見る"
+              },
+              url: shoppingList.url
+            }
+          ]
+        }
+      ]
+    })
+  });
+}
+```
+
+## Slashコマンド
+
+Slackから直接献立を操作できるSlashコマンドを作成できます。
+
+### /mealplan コマンドの設定
+
+1. Slack App設定で "Slash Commands" を選択
+2. "Create New Command" をクリック
+3. コマンドを設定：
+   - Command: `/mealplan`
+   - Request URL: `https://your-app.com/slack/commands`
+   - Short Description: "献立を管理"
+
+### コマンドハンドラーの実装
+
+```javascript
+app.post('/slack/commands', async (req, res) => {
+  const { text, user_id, channel_id } = req.body;
+  
+  // すぐに応答
+  res.status(200).send();
+  
+  // コマンドを処理
+  const args = text.split(' ');
+  const command = args[0];
+  
+  switch (command) {
+    case 'generate':
+      await generateMealPlan(user_id, channel_id);
+      break;
+    
+    case 'shopping':
+      await showShoppingList(user_id, channel_id);
+      break;
+    
+    case 'today':
+      await showTodaysMeals(user_id, channel_id);
+      break;
+    
+    default:
+      await showHelp(channel_id);
+  }
+});
+
+async function generateMealPlan(userId, channelId) {
+  // 献立を生成
+  const mealPlan = await createMealPlan(userId);
+  
+  // Slackに投稿
+  await postToSlack(channelId, {
+    text: '献立を生成しています...',
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "✅ 献立の生成が完了しました！"
+        }
+      }
+    ]
+  });
+}
+```
+
+### 使用例
+
+```
+/mealplan generate - 新しい献立を生成
+/mealplan shopping - 買い物リストを表示
+/mealplan today - 今日の献立を表示
+/mealplan help - ヘルプを表示
+```
+
+## ベストプラクティス
+
+### 1. 適切なチャンネルを使用
+
+家族専用のプライベートチャンネルを作成することをお勧めします。
+
+```javascript
+// プライベートチャンネルに投稿
+const config = {
+  channel: '#family-meals', // プライベートチャンネル
+  notify_users: ['@dad', '@mom']
+};
+```
+
+### 2. 通知のタイミング
+
+献立生成後すぐに通知するのではなく、適切なタイミングで通知します。
+
+```javascript
+// 夕方6時に通知
+const scheduledTime = new Date();
+scheduledTime.setHours(18, 0, 0);
+
+await scheduleSlackMessage({
+  channel: '#meal-planning',
+  post_at: scheduledTime.getTime() / 1000,
+  text: '今週の献立が完成しました！'
+});
+```
+
+### 3. リッチなフォーマット
+
+Block Kitを使用して見やすいメッセージを作成します。
+
+## トラブルシューティング
+
+<AccordionGroup>
+  <Accordion title="メッセージが投稿されない">
+    - Slackトークンが正しいか確認
+    - アプリがチャンネルに追加されているか確認
+    - 必要な権限（スコープ）が付与されているか確認
+  </Accordion>
+  
+  <Accordion title="プライベートチャンネルに投稿できない">
+    - アプリをチャンネルに招待: `/invite @MealPlan AI`
+    - `chat:write` スコープが付与されているか確認
+  </Accordion>
+  
+  <Accordion title="画像が表示されない">
+    - 画像URLが公開されているか確認
+    - HTTPSを使用しているか確認
+    - ファイルサイズが制限内か確認（最大10MB）
+  </Accordion>
+</AccordionGroup>
+
+## 次のステップ
+
+<CardGroup cols={2}>
+  <Card title="Webhook統合" icon="webhook" href="/integrations/webhooks">
+    リアルタイム通知を受け取る
+  </Card>
+  <Card title="カレンダー連携" icon="calendar" href="/integrations/calendar">
+    献立をカレンダーに追加
+  </Card>
+  <Card title="Slack API" icon="book" href="https://api.slack.com/docs">
+    Slack APIドキュメント
+  </Card>
+</CardGroup>

@@ -1,33 +1,325 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "API概要"
+description: "MealPlan AI APIの基本的な使い方"
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+## MealPlan AI APIへようこそ
 
-## Welcome
+MealPlan AI APIは、あなたのアプリケーションに強力な献立生成機能を統合できるRESTful APIです。家族向けの健康的な献立提案、栄養分析、買い物リスト生成などの機能を簡単に利用できます。
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+## 主な特徴
+
+<CardGroup cols={2}>
+  <Card title="RESTful設計" icon="code">
+    標準的なHTTPメソッドとステータスコードを使用した直感的なAPI
+  </Card>
+  <Card title="JSON形式" icon="brackets-curly">
+    すべてのリクエストとレスポンスはJSON形式
+  </Card>
+  <Card title="OAuth 2.0対応" icon="shield-check">
+    業界標準の認証プロトコルをサポート
+  </Card>
+  <Card title="GraphQL対応" icon="diagram-project">
+    プレミアムプラン以上でGraphQL APIも利用可能
+  </Card>
+</CardGroup>
+
+## ベースURL
+
+すべてのAPIエンドポイントは以下のベースURLから始まります：
+
+<CodeGroup>
+```bash 本番環境
+https://api.mealplan-ai.com/v1
+```
+
+```bash サンドボックス環境
+https://sandbox-api.mealplan-ai.com/v1
+```
+</CodeGroup>
+
+<Tip>
+  開発中は、サンドボックス環境を使用することをお勧めします。サンドボックス環境では、実際のデータに影響を与えずにAPIをテストできます。
+</Tip>
+
+## クイックスタート
+
+最初のAPIリクエストを送信してみましょう：
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.mealplan-ai.com/v1/profiles \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.mealplan-ai.com/v1/profiles', {
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY'
+  }
+});
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+headers = {
+    'Authorization': 'Bearer YOUR_API_KEY'
+}
+response = requests.get('https://api.mealplan-ai.com/v1/profiles', headers=headers)
+data = response.json()
+print(data)
+```
+
+```ruby Ruby
+require 'net/http'
+require 'json'
+
+uri = URI('https://api.mealplan-ai.com/v1/profiles')
+request = Net::HTTP::Get.new(uri)
+request['Authorization'] = 'Bearer YOUR_API_KEY'
+
+response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+  http.request(request)
+end
+
+data = JSON.parse(response.body)
+puts data
+```
+</CodeGroup>
+
+## 認証
+
+すべてのAPIリクエストには認証が必要です。詳細は[認証ガイド](/api-reference/authentication)をご覧ください。
 
 <Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
+  title="認証について詳しく"
+  icon="key"
+  href="/api-reference/authentication"
+  horizontal
 >
-  View the OpenAPI specification file
+  OAuth 2.0とAPIキーによる認証方法を学ぶ
 </Card>
 
-## Authentication
+## レスポンス形式
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+すべてのAPIレスポンスはJSON形式で返されます。
+
+### 成功レスポンス
 
 ```json
-"security": [
-  {
-    "bearerAuth": []
+{
+  "success": true,
+  "data": {
+    // レスポンスデータ
+  },
+  "meta": {
+    "request_id": "req_abc123",
+    "timestamp": "2024-01-15T10:30:00Z"
   }
-]
+}
 ```
+
+### エラーレスポンス
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "invalid_request",
+    "message": "リクエストパラメータが不正です",
+    "details": {
+      "field": "duration_days",
+      "issue": "1以上365以下の整数である必要があります"
+    }
+  },
+  "meta": {
+    "request_id": "req_xyz789",
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+## HTTPステータスコード
+
+MealPlan AI APIは、標準的なHTTPステータスコードを使用します：
+
+| ステータスコード | 説明 |
+|-----------------|------|
+| `200 OK` | リクエストが成功しました |
+| `201 Created` | リソースが正常に作成されました |
+| `204 No Content` | リクエストは成功しましたが、返すコンテンツがありません |
+| `400 Bad Request` | リクエストが不正です |
+| `401 Unauthorized` | 認証が必要です |
+| `403 Forbidden` | アクセス権限がありません |
+| `404 Not Found` | リソースが見つかりません |
+| `429 Too Many Requests` | レート制限を超えました |
+| `500 Internal Server Error` | サーバーエラーが発生しました |
+| `503 Service Unavailable` | サービスが一時的に利用できません |
+
+## ページネーション
+
+リスト取得APIは、ページネーションをサポートしています：
+
+```json
+{
+  "success": true,
+  "data": [
+    // データの配列
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 20,
+    "total": 150,
+    "total_pages": 8,
+    "has_next": true,
+    "has_prev": false
+  }
+}
+```
+
+### ページネーションパラメータ
+
+- `page`: ページ番号（デフォルト: 1）
+- `per_page`: 1ページあたりの件数（デフォルト: 20、最大: 100）
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.mealplan-ai.com/v1/meal-plans?page=2&per_page=50" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.mealplan-ai.com/v1/meal-plans?page=2&per_page=50',
+  {
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY'
+    }
+  }
+);
+```
+</CodeGroup>
+
+## レート制限
+
+APIの使用には、プランに応じたレート制限があります：
+
+| プラン | レート制限 |
+|--------|-----------|
+| 無料 | 100リクエスト/日 |
+| ベーシック | 1,000リクエスト/日 |
+| プレミアム | 10,000リクエスト/日 |
+| エンタープライズ | カスタム |
+
+レート制限の詳細は[レート制限ガイド](/developer/rate-limits)をご覧ください。
+
+### レート制限ヘッダー
+
+すべてのレスポンスには、レート制限に関する情報がヘッダーに含まれます：
+
+```
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 999
+X-RateLimit-Reset: 1705315200
+```
+
+## バージョニング
+
+APIのバージョンはURLに含まれます（例: `/v1/`）。メジャーバージョンアップ時は、少なくとも6ヶ月前に通知し、旧バージョンのサポートを継続します。
+
+<Note>
+  現在のAPIバージョン: **v1**
+  
+  最新の変更履歴は[Changelog](https://mealplan-ai.com/changelog)でご確認ください。
+</Note>
+
+## SDKとライブラリ
+
+公式SDKを使用すると、より簡単にAPIを利用できます：
+
+<CardGroup cols={2}>
+  <Card title="JavaScript/TypeScript" icon="js" href="https://github.com/mealplan-ai/sdk-javascript">
+    ```bash
+    npm install @mealplan-ai/sdk
+    ```
+  </Card>
+  <Card title="Python" icon="python" href="https://github.com/mealplan-ai/sdk-python">
+    ```bash
+    pip install mealplan-ai
+    ```
+  </Card>
+  <Card title="Ruby" icon="gem" href="https://github.com/mealplan-ai/sdk-ruby">
+    ```bash
+    gem install mealplan-ai
+    ```
+  </Card>
+  <Card title="Go" icon="golang" href="https://github.com/mealplan-ai/sdk-go">
+    ```bash
+    go get github.com/mealplan-ai/sdk-go
+    ```
+  </Card>
+</CardGroup>
+
+## 主要なAPIエンドポイント
+
+<CardGroup cols={2}>
+  <Card title="献立API" icon="utensils" href="/api-reference/meal-plans/generate">
+    献立の生成、取得、更新、削除
+  </Card>
+  <Card title="レシピAPI" icon="book-open" href="/api-reference/recipes/search">
+    レシピの検索、詳細取得、お気に入り管理
+  </Card>
+  <Card title="買い物リストAPI" icon="cart-shopping" href="/api-reference/shopping/generate">
+    買い物リストの生成と管理
+  </Card>
+  <Card title="プロフィールAPI" icon="user" href="/api-reference/profiles/get">
+    家族プロフィールの管理
+  </Card>
+</CardGroup>
+
+## Webhook
+
+リアルタイムイベント通知を受け取るには、Webhookを設定します：
+
+<Card
+  title="Webhook設定ガイド"
+  icon="webhook"
+  href="/api-reference/webhooks/setup"
+  horizontal
+>
+  献立生成完了などのイベントをリアルタイムで受信
+</Card>
+
+## サポートとリソース
+
+<CardGroup cols={2}>
+  <Card title="開発者ガイド" icon="book" href="/developer/authentication">
+    認証、エラーハンドリング、ベストプラクティス
+  </Card>
+  <Card title="統合ガイド" icon="puzzle-piece" href="/integrations/webhooks">
+    Slack、カレンダーなどとの連携方法
+  </Card>
+  <Card title="API Status" icon="signal" href="https://status.mealplan-ai.com">
+    APIの稼働状況をリアルタイムで確認
+  </Card>
+  <Card title="サポート" icon="life-ring" href="mailto:support@mealplan-ai.com">
+    技術サポートチームに問い合わせ
+  </Card>
+</CardGroup>
+
+## 次のステップ
+
+<Steps>
+  <Step title="認証を設定">
+    [認証ガイド](/api-reference/authentication)を読んで、APIキーを取得
+  </Step>
+  <Step title="最初の献立を生成">
+    [献立生成API](/api-reference/meal-plans/generate)を使って献立を作成
+  </Step>
+  <Step title="統合を拡張">
+    [Webhook](/api-reference/webhooks/setup)や[外部連携](/integrations/webhooks)を設定
+  </Step>
+</Steps>

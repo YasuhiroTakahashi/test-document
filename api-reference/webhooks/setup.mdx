@@ -1,0 +1,238 @@
+---
+title: "Webhook設定"
+api: "POST /v1/webhooks"
+description: "Webhookを設定してイベント通知を受け取ります"
+---
+
+## 概要
+
+Webhookを設定することで、献立生成完了などのイベントをリアルタイムで受信できます。
+
+## Webhook作成
+
+### エンドポイント
+
+```
+POST https://api.mealplan-ai.com/v1/webhooks
+```
+
+### 認証
+
+<ParamField header="Authorization" type="string" required>
+  Bearer トークン形式のAPIキーまたはOAuthアクセストークン
+</ParamField>
+
+### リクエストボディ
+
+<ParamField body="url" type="string" required>
+  Webhook通知を受け取るURL
+</ParamField>
+
+<ParamField body="events" type="array" required>
+  購読するイベントタイプの配列
+  
+  選択肢:
+  - `meal_plan.generated` - 献立生成完了
+  - `meal_plan.updated` - 献立更新
+  - `meal_plan.deleted` - 献立削除
+  - `shopping_list.generated` - 買い物リスト生成完了
+</ParamField>
+
+<ParamField body="secret" type="string">
+  署名検証用のシークレット（推奨）
+</ParamField>
+
+### リクエスト例
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.mealplan-ai.com/v1/webhooks \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-app.com/webhooks/mealplan",
+    "events": ["meal_plan.generated", "shopping_list.generated"],
+    "secret": "your_webhook_secret"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.mealplan-ai.com/v1/webhooks',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      url: 'https://your-app.com/webhooks/mealplan',
+      events: ['meal_plan.generated', 'shopping_list.generated'],
+      secret: 'your_webhook_secret'
+    })
+  }
+);
+
+const webhook = await response.json();
+```
+
+```python Python
+import requests
+
+url = "https://api.mealplan-ai.com/v1/webhooks"
+headers = {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+}
+data = {
+    "url": "https://your-app.com/webhooks/mealplan",
+    "events": ["meal_plan.generated", "shopping_list.generated"],
+    "secret": "your_webhook_secret"
+}
+
+response = requests.post(url, headers=headers, json=data)
+webhook = response.json()
+```
+</CodeGroup>
+
+### レスポンス例
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "wh_abc123",
+    "url": "https://your-app.com/webhooks/mealplan",
+    "events": ["meal_plan.generated", "shopping_list.generated"],
+    "active": true,
+    "created_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+## Webhook一覧取得
+
+### エンドポイント
+
+```
+GET https://api.mealplan-ai.com/v1/webhooks
+```
+
+### レスポンス例
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "wh_abc123",
+      "url": "https://your-app.com/webhooks/mealplan",
+      "events": ["meal_plan.generated"],
+      "active": true,
+      "created_at": "2024-01-15T10:30:00Z"
+    }
+  ]
+}
+```
+
+## Webhook削除
+
+### エンドポイント
+
+```
+DELETE https://api.mealplan-ai.com/v1/webhooks/{id}
+```
+
+### リクエスト例
+
+```bash
+curl -X DELETE https://api.mealplan-ai.com/v1/webhooks/wh_abc123 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Webhookペイロード
+
+Webhookイベントが発生すると、以下の形式でPOSTリクエストが送信されます：
+
+```json
+{
+  "id": "evt_abc123",
+  "type": "meal_plan.generated",
+  "created_at": "2024-01-15T10:30:00Z",
+  "data": {
+    "meal_plan_id": "mp_abc123",
+    "duration_days": 7,
+    "shopping_list_id": "sl_xyz789"
+  }
+}
+```
+
+## 署名検証
+
+Webhookの真正性を確認するため、署名検証を実装することを強く推奨します。
+
+### 検証方法
+
+```javascript
+const crypto = require('crypto');
+
+function verifyWebhookSignature(payload, signature, secret) {
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+  
+  return signature === expectedSignature;
+}
+
+// Express.jsでの使用例
+app.post('/webhooks/mealplan', (req, res) => {
+  const signature = req.headers['x-mealplan-signature'];
+  const isValid = verifyWebhookSignature(
+    req.body,
+    signature,
+    'your_webhook_secret'
+  );
+  
+  if (!isValid) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  // イベント処理
+  const event = req.body;
+  console.log('Received event:', event.type);
+  
+  res.status(200).send('OK');
+});
+```
+
+## ベストプラクティス
+
+<AccordionGroup>
+  <Accordion title="冪等性を確保する">
+    同じイベントが複数回送信される可能性があるため、イベントIDを記録して重複処理を防ぎます。
+  </Accordion>
+  
+  <Accordion title="迅速に応答する">
+    Webhookエンドポイントは5秒以内に200ステータスコードを返してください。処理に時間がかかる場合は、キューに入れて非同期で処理します。
+  </Accordion>
+  
+  <Accordion title="エラーハンドリング">
+    Webhookの受信に失敗した場合、最大3回まで再送信されます。指数バックオフで間隔が空きます。
+  </Accordion>
+  
+  <Accordion title="HTTPSを使用">
+    WebhookのURLは必ずHTTPSを使用してください。HTTPは受け付けられません。
+  </Accordion>
+</AccordionGroup>
+
+## 関連エンドポイント
+
+<CardGroup cols={2}>
+  <Card title="イベントタイプ" icon="bell" href="/api-reference/webhooks/events">
+    利用可能なイベントタイプの詳細
+  </Card>
+  <Card title="統合ガイド" icon="puzzle-piece" href="/integrations/webhooks">
+    Webhookの実装ガイド
+  </Card>
+</CardGroup>

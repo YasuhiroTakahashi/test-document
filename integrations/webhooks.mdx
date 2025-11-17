@@ -1,0 +1,354 @@
+---
+title: "Webhook統合"
+description: "Webhookを使用してリアルタイムイベント通知を受け取る"
+---
+
+## 概要
+
+Webhookを使用すると、献立生成完了などのイベントが発生したときに、リアルタイムで通知を受け取ることができます。ポーリングの代わりにWebhookを使用することで、APIレート制限を節約できます。
+
+## Webhookの設定
+
+<Steps>
+  <Step title="エンドポイントを準備">
+    Webhook通知を受け取るHTTPSエンドポイントを用意します。
+    
+    ```javascript
+    // Express.jsの例
+    app.post('/webhooks/mealplan', (req, res) => {
+      const event = req.body;
+      console.log('Received event:', event.type);
+      
+      // イベントを処理
+      handleEvent(event);
+      
+      // 迅速に200を返す
+      res.status(200).send('OK');
+    });
+    ```
+  </Step>
+  
+  <Step title="Webhookを登録">
+    APIまたはダッシュボードからWebhookを登録します。
+    
+    ```bash
+    curl -X POST https://api.mealplan-ai.com/v1/webhooks \
+      -H "Authorization: Bearer YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "url": "https://your-app.com/webhooks/mealplan",
+        "events": ["meal_plan.generated", "shopping_list.generated"],
+        "secret": "your_webhook_secret"
+      }'
+    ```
+  </Step>
+  
+  <Step title="署名を検証">
+    Webhookの真正性を確認するため、署名を検証します。
+    
+    ```javascript
+    const crypto = require('crypto');
+    
+    function verifyWebhookSignature(payload, signature, secret) {
+      const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(JSON.stringify(payload))
+        .digest('hex');
+      
+      return crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expectedSignature)
+      );
+    }
+    ```
+  </Step>
+  
+  <Step title="イベントを処理">
+    イベントタイプに応じて適切な処理を実行します。
+    
+    ```javascript
+    function handleEvent(event) {
+      switch (event.type) {
+        case 'meal_plan.generated':
+          handleMealPlanGenerated(event.data);
+          break;
+        case 'shopping_list.generated':
+          handleShoppingListGenerated(event.data);
+          break;
+        default:
+          console.log('Unknown event type:', event.type);
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## 利用可能なイベント
+
+### meal_plan.generated
+
+献立の生成が完了したときに送信されます。
+
+```json
+{
+  "id": "evt_abc123",
+  "type": "meal_plan.generated",
+  "created_at": "2024-01-15T10:30:00Z",
+  "data": {
+    "meal_plan_id": "mp_abc123",
+    "duration_days": 7,
+    "shopping_list_id": "sl_xyz789"
+  }
+}
+```
+
+### shopping_list.generated
+
+買い物リストが生成されたときに送信されます。
+
+```json
+{
+  "id": "evt_def456",
+  "type": "shopping_list.generated",
+  "created_at": "2024-01-15T10:30:00Z",
+  "data": {
+    "shopping_list_id": "sl_xyz789",
+    "meal_plan_id": "mp_abc123",
+    "total_items": 25
+  }
+}
+```
+
+## 実装例
+
+### Node.js + Express
+
+```javascript
+const express = require('express');
+const crypto = require('crypto');
+
+const app = express();
+app.use(express.json());
+
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+
+// 署名検証ミドルウェア
+function verifySignature(req, res, next) {
+  const signature = req.headers['x-mealplan-signature'];
+  const payload = JSON.stringify(req.body);
+  
+  const expectedSignature = crypto
+    .createHmac('sha256', WEBHOOK_SECRET)
+    .update(payload)
+    .digest('hex');
+  
+  if (signature !== expectedSignature) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  next();
+}
+
+// Webhookエンドポイント
+app.post('/webhooks/mealplan', verifySignature, async (req, res) => {
+  const event = req.body;
+  
+  // 冪等性の確保（イベントIDを記録）
+  const isDuplicate = await checkEventId(event.id);
+  if (isDuplicate) {
+    return res.status(200).send('Already processed');
+  }
+  
+  // イベント処理
+  try {
+    await processEvent(event);
+    await saveEventId(event.id);
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('Error processing event:', error);
+    res.status(500).send('Error');
+  }
+});
+
+async function processEvent(event) {
+  switch (event.type) {
+    case 'meal_plan.generated':
+      // ユーザーに通知を送信
+      await sendNotification(event.data.meal_plan_id);
+      break;
+    
+    case 'shopping_list.generated':
+      // 買い物リストをメールで送信
+      await emailShoppingList(event.data.shopping_list_id);
+      break;
+  }
+}
+
+app.listen(3000);
+```
+
+### Python + Flask
+
+```python
+from flask import Flask, request, jsonify
+import hmac
+import hashlib
+import json
+import os
+
+app = Flask(__name__)
+WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET')
+
+def verify_signature(payload, signature):
+    expected_signature = hmac.new(
+        WEBHOOK_SECRET.encode(),
+        payload.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected_signature)
+
+@app.route('/webhooks/mealplan', methods=['POST'])
+def webhook_handler():
+    signature = request.headers.get('X-Mealplan-Signature')
+    payload = request.get_data(as_text=True)
+    
+    if not verify_signature(payload, signature):
+        return jsonify({'error': 'Invalid signature'}), 401
+    
+    event = request.json
+    
+    # イベント処理
+    process_event(event)
+    
+    return jsonify({'status': 'ok'}), 200
+
+def process_event(event):
+    event_type = event['type']
+    
+    if event_type == 'meal_plan.generated':
+        handle_meal_plan_generated(event['data'])
+    elif event_type == 'shopping_list.generated':
+        handle_shopping_list_generated(event['data'])
+
+if __name__ == '__main__':
+    app.run()
+```
+
+## ベストプラクティス
+
+### 1. 迅速に応答する
+
+Webhookエンドポイントは5秒以内に200ステータスコードを返してください。
+
+```javascript
+// ✅ 正しい
+app.post('/webhooks/mealplan', async (req, res) => {
+  const event = req.body;
+  
+  // すぐに応答
+  res.status(200).send('OK');
+  
+  // 非同期で処理
+  processEventAsync(event);
+});
+
+// ❌ 間違い
+app.post('/webhooks/mealplan', async (req, res) => {
+  const event = req.body;
+  
+  // 処理に時間がかかる
+  await longRunningProcess(event);
+  
+  res.status(200).send('OK');
+});
+```
+
+### 2. 冪等性を確保する
+
+同じイベントが複数回送信される可能性があるため、イベントIDを記録して重複処理を防ぎます。
+
+```javascript
+const processedEvents = new Set();
+
+async function processEvent(event) {
+  if (processedEvents.has(event.id)) {
+    console.log('Event already processed:', event.id);
+    return;
+  }
+  
+  // イベント処理
+  await handleEvent(event);
+  
+  // イベントIDを記録
+  processedEvents.add(event.id);
+}
+```
+
+### 3. リトライを考慮する
+
+Webhookの受信に失敗した場合、最大3回まで再送信されます。
+
+- 1回目: 即座
+- 2回目: 1分後
+- 3回目: 5分後
+
+### 4. HTTPSを使用する
+
+WebhookのURLは必ずHTTPSを使用してください。
+
+## テスト
+
+### ローカルテスト
+
+ngrokを使用してローカル環境を公開：
+
+```bash
+# ngrokをインストール
+brew install ngrok
+
+# ローカルサーバーを公開
+ngrok http 3000
+
+# 表示されたURLをWebhook URLとして登録
+# 例: https://abc123.ngrok.io/webhooks/mealplan
+```
+
+### テストイベントの送信
+
+ダッシュボードから、過去のイベントを再送信してテストできます。
+
+## トラブルシューティング
+
+<AccordionGroup>
+  <Accordion title="Webhookが届かない">
+    - URLがHTTPSであることを確認
+    - ファイアウォール設定を確認
+    - エンドポイントが5秒以内に応答しているか確認
+    - ログでエラーを確認
+  </Accordion>
+  
+  <Accordion title="署名検証が失敗する">
+    - シークレットが正しいか確認
+    - ペイロードを変更せずに検証しているか確認
+    - 文字エンコーディングを確認（UTF-8）
+  </Accordion>
+  
+  <Accordion title="重複イベントを受信">
+    - イベントIDを記録して重複を防ぐ
+    - 冪等性を確保した処理を実装
+  </Accordion>
+</AccordionGroup>
+
+## 次のステップ
+
+<CardGroup cols={2}>
+  <Card title="Slack連携" icon="slack" href="/integrations/slack">
+    Slackで献立を共有
+  </Card>
+  <Card title="カレンダー連携" icon="calendar" href="/integrations/calendar">
+    献立をカレンダーに追加
+  </Card>
+  <Card title="Webhook API" icon="webhook" href="/api-reference/webhooks/setup">
+    Webhook APIの詳細
+  </Card>
+</CardGroup>

@@ -1,0 +1,106 @@
+---
+title: "プロフィール更新"
+api: "PUT /v1/profiles/{id}"
+description: "家族プロフィールを更新します"
+---
+
+## 概要
+
+既存の家族プロフィールを更新します。
+
+## エンドポイント
+
+```
+PUT https://api.mealplan-ai.com/v1/profiles/{id}
+```
+
+## 認証
+
+<ParamField header="Authorization" type="string" required>
+  Bearer トークン形式のAPIキーまたはOAuthアクセストークン
+</ParamField>
+
+## パスパラメータ
+
+<ParamField path="id" type="string" required>
+  プロフィールID
+</ParamField>
+
+## リクエストボディ
+
+<ParamField body="family_members" type="array">
+  更新する家族メンバーの配列
+</ParamField>
+
+## リクエスト例
+
+<CodeGroup>
+```bash cURL
+curl -X PUT https://api.mealplan-ai.com/v1/profiles/prof_abc123 \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "family_members": [
+      {
+        "id": "member_001",
+        "allergies": ["えび", "かに", "そば"]
+      }
+    ]
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.mealplan-ai.com/v1/profiles/prof_abc123',
+  {
+    method: 'PUT',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      family_members: [
+        {
+          id: 'member_001',
+          allergies: ['えび', 'かに', 'そば']
+        }
+      ]
+    })
+  }
+);
+
+const result = await response.json();
+```
+</CodeGroup>
+
+## レスポンス例
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "prof_abc123",
+    "family_members": [
+      {
+        "id": "member_001",
+        "name": "太郎",
+        "age": 35,
+        "gender": "male",
+        "allergies": ["えび", "かに", "そば"]
+      }
+    ],
+    "updated_at": "2024-01-15T14:30:00Z"
+  }
+}
+```
+
+## 関連エンドポイント
+
+<CardGroup cols={2}>
+  <Card title="プロフィール取得" icon="user" href="/api-reference/profiles/get">
+    プロフィールを取得
+  </Card>
+  <Card title="プロフィール作成" icon="plus" href="/api-reference/profiles/create">
+    新しいプロフィールを作成
+  </Card>
+</CardGroup>

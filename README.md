@@ -1,43 +1,99 @@
-# Mintlify Starter Kit
+# MealPlan AI Documentation
 
-Use the starter kit to get your docs deployed and ready to customize.
+AIを活用した献立提案SaaS「MealPlan AI」の公式ドキュメントサイトです。
 
-Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
+## 概要
 
-- Guide pages
-- Navigation
-- Customizations
-- API reference pages
-- Use of popular components
+MealPlan AIは、家族を持つエンジニア向けに毎日の健康的な献立を提案するSaaSサービスです。このドキュメントサイトでは、サービスの使い方からAPI統合まで、包括的な情報を提供しています。
 
-**[Follow the full quickstart guide](https://starter.mintlify.com/quickstart)**
+## ドキュメント構成
 
-## Development
+### コアページ（3ページ）
+- **ホームページ** (`index.mdx`) - サービス概要と主要機能
+- **クイックスタート** (`quickstart.mdx`) - 3ステップで始める導入ガイド
+- **料金プラン** (`pricing.mdx`) - 4つのプラン（Free、Basic、Pro、Enterprise）
 
-Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally. To install, use the following command:
+### ユーザーガイド（4ページ）
+- 家族プロフィール設定
+- 献立管理
+- 買い物リスト活用
+- 栄養バランス確認
 
-```
+### 開発者ガイド（4ページ）
+- 認証とセキュリティ
+- レート制限
+- エラーハンドリング
+- ベストプラクティス
+
+### 統合ガイド（3ページ）
+- Webhook統合
+- Slack連携
+- カレンダー連携
+
+### APIリファレンス（18ページ）
+- API概要と認証（2ページ）
+- 献立API（5ページ）
+- レシピAPI（3ページ）
+- 買い物リストAPI（3ページ）
+- プロフィールAPI（3ページ）
+- Webhook API（2ページ）
+
+**合計31ページ**の包括的なドキュメント
+
+## 開発環境のセットアップ
+
+[Mintlify CLI](https://www.npmjs.com/package/mint)をインストールして、ローカルでドキュメントをプレビューできます。
+
+```bash
 npm i -g mint
 ```
 
-Run the following command at the root of your documentation, where your `docs.json` is located:
+ドキュメントのルートディレクトリ（`docs.json`がある場所）で以下のコマンドを実行：
 
-```
+```bash
 mint dev
 ```
 
-View your local preview at `http://localhost:3000`.
+ローカルプレビューは `http://localhost:3000` で確認できます。
 
-## Publishing changes
+## 変更のデプロイ
 
-Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.
+[ダッシュボード](https://dashboard.mintlify.com/settings/organization/github-app)からGitHubアプリをインストールすると、リポジトリの変更が自動的にデプロイに反映されます。デフォルトブランチへのプッシュ後、本番環境に自動デプロイされます。
 
-## Need help?
+## 主な機能
 
-### Troubleshooting
+### AIによる献立生成
+- 家族構成と好みに基づいた献立提案
+- 栄養バランスを考慮した自動調整
+- アレルギーや食事制限への対応
 
-- If your dev environment isn't running: Run `mint update` to ensure you have the most recent version of the CLI.
-- If a page loads as a 404: Make sure you are running in a folder with a valid `docs.json`.
+### 買い物リスト自動生成
+- 献立から必要な食材を自動抽出
+- カテゴリ別に整理された買い物リスト
+- 既存の在庫を考慮した最適化
 
-### Resources
-- [Mintlify documentation](https://mintlify.com/docs)
+### 外部サービス連携
+- Slack: 家族との献立共有
+- Googleカレンダー: 献立のスケジュール管理
+- Webhook: リアルタイムイベント通知
+
+## トラブルシューティング
+
+### 開発環境が起動しない
+最新版のCLIを使用していることを確認してください：
+```bash
+mint update
+```
+
+### ページが404エラーになる
+有効な`docs.json`があるフォルダで実行していることを確認してください。
+
+## リソース
+
+- [Mintlifyドキュメント](https://mintlify.com/docs)
+- [MealPlan AI公式サイト](https://mealplan-ai.com)
+- [APIリファレンス](https://docs.mealplan-ai.com/api-reference/introduction)
+
+## ライセンス
+
+このドキュメントはMITライセンスの下で公開されています。
